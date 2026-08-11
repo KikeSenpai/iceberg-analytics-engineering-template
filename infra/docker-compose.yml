@@ -105,7 +105,7 @@ services:
       - -v
       - http://lakekeeper:8181/management/v1/bootstrap
       - -H
-      - Content-Type: application/json
+      - "Content-Type: application/json"
       - --data
       - '{"accept-terms-of-use": true}'
       - -o
@@ -131,9 +131,9 @@ services:
       - -v
       - http://lakekeeper:8181/management/v1/warehouse
       - -H
-      - Content-Type: application/json
+      - "Content-Type: application/json"
       - --data
-      - @create-warehouse.json
+      - "@create-warehouse.json"
       - -o
       - /dev/null
     volumes:
