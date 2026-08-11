@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Install uv if missing
+if ! command -v uv &>/dev/null; then
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    export PATH="$HOME/.local/bin:$PATH"
+fi
+
+# Install just if missing
+if ! command -v just &>/dev/null; then
+    curl -sSf https://just.systems/install.sh | bash -s -- --to "$HOME/.local/bin"
+    export PATH="$HOME/.local/bin:$PATH"
+fi
+
+# Sync Python dependencies
+uv sync
+
+echo "Setup complete. Run 'just infra-up' to start services."

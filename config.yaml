@@ -1,0 +1,18 @@
+gateways:
+  trino:
+    connection:
+      type: trino
+      user: sqlmesh
+      host: localhost
+      port: 8080
+      catalog: iceberg
+      http_scheme: http
+    state_connection:
+      type: duckdb
+      database: sqlmesh_state.db
+
+default_gateway: trino
+
+model_defaults:
+  dialect: trino
+  start: 2025-01-01

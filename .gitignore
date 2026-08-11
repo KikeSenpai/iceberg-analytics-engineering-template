@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# SQLMesh
+sqlmesh_state.db
+sqlmesh_state.db.wal
+.cache/
+logs/
+
+# Environment
+.env
+.user.yml
+
+# OS
+.DS_Store

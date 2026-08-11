@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Fast check — verify deps are installed
+if command -v uv &>/dev/null && command -v just &>/dev/null; then
+    uv sync
+    echo "Resume check passed."
+else
+    echo "Missing tools. Run .agents/setup"
+    exit 1
+fi

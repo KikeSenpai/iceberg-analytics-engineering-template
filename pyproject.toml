@@ -1,0 +1,8 @@
+[project]
+name = "iceberg-analytics-engineering-template"
+version = "0.1.0"
+description = "Iceberg analytics stack for analytics engineer take-home tests"
+requires-python = ">=3.11"
+dependencies = [
+    "sqlmesh[trino]",
+]
