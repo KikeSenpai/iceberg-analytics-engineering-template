@@ -1,19 +1,37 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Install uv if missing
+step() { printf '\n=== %s ===\n' "$1"; }
+
+step "Install uv (if missing)"
 if ! command -v uv &>/dev/null; then
     curl -LsSf https://astral.sh/uv/install.sh | sh
     export PATH="$HOME/.local/bin:$PATH"
+    echo "uv installed"
+else
+    echo "uv already present: $(uv --version)"
 fi
 
-# Install just if missing
+step "Install just (if missing)"
 if ! command -v just &>/dev/null; then
     curl -sSf https://just.systems/install.sh | bash -s -- --to "$HOME/.local/bin"
     export PATH="$HOME/.local/bin:$PATH"
+    echo "just installed"
+else
+    echo "just already present: $(just --version)"
 fi
 
-# Sync Python dependencies
+step "Sync Python dependencies"
 uv sync
+echo "Dependencies synced"
 
+step "Copy .env.example to .env (if missing)"
+if [ -f .env.example ] && [ ! -f .env ]; then
+    cp -- .env.example .env
+    echo ".env created from .env.example"
+else
+    echo ".env already exists or no .env.example"
+fi
+
+echo ""
 echo "Setup complete. Run 'just infra-up' to start services."

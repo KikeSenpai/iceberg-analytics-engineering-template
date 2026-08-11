@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Fast check — verify deps are installed
-if command -v uv &>/dev/null && command -v just &>/dev/null; then
-    uv sync
-    echo "Resume check passed."
-else
-    echo "Missing tools. Run .agents/setup"
+# Fast, idempotent reconnect check — must finish in seconds.
+# Verify tools are available and deps are synced.
+
+if ! command -v uv &>/dev/null; then
+    echo "uv missing — run .agents/setup"
     exit 1
 fi
+
+uv sync --frozen 2>/dev/null || uv sync
+echo "Resume check passed."
