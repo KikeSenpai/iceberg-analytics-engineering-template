@@ -58,7 +58,7 @@ Startup order (orchestrated by Compose depends_on):
 3. Lakekeeper migrate runs (DB schema migration).
 4. Lakekeeper server starts (REST catalog on :8181).
 5. Bootstrap accepts terms-of-use.
-6. Initialwarehouse creates warehouse `bronze` (S3 bucket `warehouse`).
+6. Initialwarehouse creates warehouse `prod` (S3 bucket `warehouse`).
 7. Trino starts (Iceberg connector → Lakekeeper REST catalog, S3 → MinIO).
 
 SQLMesh connects to Trino on localhost:8080, catalog `iceberg`.
