@@ -107,18 +107,34 @@ justfile         CLI recipes
 
 ## Architecture
 
-```
-Lakekeeper warehouse "prod"
-  └── namespace "raw"        ← Trino schema: iceberg.raw
-  │   └── table "orders"
-  └── namespace "staging"    ← Trino schema: iceberg.staging
-      └── table "stg_orders"
+```mermaid
+graph LR
+    sqlmesh["SQLMesh"]
+    trino["Trino"]
+    lakekeeper["Lakekeeper\n(REST Catalog)"]
+    minio["MinIO\n(s3://warehouse/)"]
+    postgres["Postgres\n(Lakekeeper metadata)"]
+
+    sqlmesh -- "Trino JDBC" --> trino
+    trino -- "Iceberg REST" --> lakekeeper
+    lakekeeper -- "metadata" --> postgres
+    trino -- "S3 / vended creds" --> minio
+
+    subgraph "warehouse 'prod'"
+        ns_raw["namespace: raw"]
+        ns_staging["namespace: staging"]
+    end
+    lakekeeper --- ns_raw
+    lakekeeper --- ns_staging
+    ns_raw -- "table" --> tbl_orders["orders"]
+    ns_staging -- "table" --> tbl_stg["stg_orders"]
 ```
 
-- Lakekeeper = catalog service (metadata, storage profiles)
-- Warehouse = top-level storage container (S3 bucket, credentials)
-- Namespace = Trino schema (group of tables)
-- Table = Iceberg table (Parquet files in MinIO)
+- SQLMesh connects to Trino via JDBC and submits all model SQL there.
+- Trino's static `iceberg` catalog points to Lakekeeper warehouse `prod`.
+- Lakekeeper stores table metadata in Postgres and vends S3 credentials to Trino.
+- Trino reads/writes Parquet data files in MinIO using vended credentials.
+- Namespace = Trino schema (e.g. `raw`, `staging`). Table = Iceberg table.
 
 Static catalog `iceberg` loads at startup (points to warehouse `prod`).
 Dynamic catalog management enabled — create additional catalogs at runtime:
