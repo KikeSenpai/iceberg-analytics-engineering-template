@@ -82,6 +82,13 @@ All commands run via `just`. Run `just --list` to see all recipes.
 | `just health` | Check Trino + Lakekeeper health endpoints |
 | `just compose-check` | Validate docker-compose config |
 
+### Raw Data Loading
+
+| Command | Purpose |
+|---------|---------|
+| `just load-raw` | Load CSV files from `data/` into `iceberg.raw.*` tables |
+| `just test-load-raw` | Run raw loader unit tests |
+
 ### SQLMesh
 
 | Command | Purpose |
@@ -129,10 +136,16 @@ All commands run via `just`. Run `just --list` to see all recipes.
 ```
 models/          SQLMesh models (SQL files)
 seeds/           CSV fixture data
+data/            Raw CSV files — loaded by `just load-raw` into iceberg.raw.*
 infra/           Docker Compose + Trino/Lakekeeper config
 config.yaml      SQLMesh project config
 justfile         CLI recipes
 ```
+
+## Raw Data Loading
+
+Place CSV files in `data/` and run `just load-raw` to load them into `iceberg.raw.<table_name>`.
+All files are validated before any table changes. See `data/README.md` for details.
 
 ## Adding Models
 

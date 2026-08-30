@@ -216,6 +216,19 @@ Trino catalog → Lakekeeper warehouse → Iceberg namespaces → Trino schemas:
 6. Run `just test` to validate.
 7. Run `just verify` for full stack verification.
 
+## Raw Data Loading
+
+CSV files placed in `data/` are loaded into `iceberg.raw.<table_name>` by the
+generic loader (`scripts/load_raw.py`).
+
+- Run `just load-raw` to load all `data/*.csv` files.
+- Run `just test-load-raw` to run the loader's unit tests.
+- All files are validated before any table is dropped or modified.
+- All raw columns are VARCHAR — SQLMesh owns typing.
+- Empty CSV fields are stored as empty strings (`''`), not SQL NULL.
+- Reserved filenames like `order.csv` work (table name is quoted).
+- See `data/README.md` for the full CSV specification.
+
 ## Key Commands
 
 | Command | Purpose |
@@ -233,6 +246,8 @@ Trino catalog → Lakekeeper warehouse → Iceberg namespaces → Trino schemas:
 | `just test` | Run SQLMesh tests |
 | `just lint` | Lint SQL models |
 | `just format` | Format SQL models |
+| `just load-raw` | Load CSV files from data/ into iceberg.raw.* tables |
+| `just test-load-raw` | Run raw loader unit tests |
 | `just fetch "SQL"` | Query via SQLMesh fetchdf |
 | `just trino-query "SQL"` | Query Trino CLI directly |
 | `just trino-shell` | Interactive Trino CLI |
