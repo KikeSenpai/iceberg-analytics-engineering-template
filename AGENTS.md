@@ -162,6 +162,26 @@ just orb-clean      # stop and wipe all native data + SQLMesh state (destructive
 - Trino config is generated at runtime with localhost endpoints.
 - No Docker volumes — data is in `$HOME/.local/share/orb-native/`.
 
+## Explore Raw Data Before Modeling
+
+Inspect loaded raw data before writing SQLMesh models. Prefer non-interactive
+commands so results remain visible in agent logs.
+
+With Docker:
+
+```
+just smoke
+just trino-query "SHOW TABLES FROM prod.raw"
+just trino-query "DESCRIBE prod.raw.<table>"
+just trino-query "SELECT * FROM prod.raw.<table> LIMIT 20"
+just trino-query "SELECT COUNT(*) FROM prod.raw.<table>"
+```
+
+In an Amp orb, use `just orb-trino-query "SQL"` with the same SQL. Use
+additional read-only queries to profile nulls, distinct values, and ranges.
+Raw-loader columns are `VARCHAR`; infer and apply business types in SQLMesh
+models. `just fetch "SELECT ..."` is also available through SQLMesh.
+
 ## Architecture
 
 SQLMesh connects to Trino on localhost:8080, catalog `prod`.
