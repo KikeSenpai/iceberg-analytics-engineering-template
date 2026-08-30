@@ -16,22 +16,45 @@ Apache Iceberg analytics stack for analytics engineer take-home tests. Trino + I
 
 ## Quick Start
 
+### Docker (local development)
+
 ```bash
 cp .env.example .env
 just setup        # install Python deps
-just infra-up     # start Trino, Lakekeeper, MinIO, Postgres
+just infra-up     # start Trino, Lakekeeper, MinIO, Postgres (Docker)
 just plan-auto    # apply SQLMesh plan (creates tables, loads seeds)
 just run          # run models
 just test         # run tests
 ```
 
+### Orb-native (Amp cloud sandbox — no Docker)
+
+```bash
+just orb-setup    # install JDK 24, Trino, MinIO, Lakekeeper, PostgreSQL
+just orb-up       # start all services as native processes
+just plan-auto    # apply SQLMesh plan
+just run          # run models
+just test         # run tests
+just orb-down     # stop services
+```
+
 ## Verify Full Stack
+
+### Docker
 
 ```bash
 just verify
 ```
 
 Runs: lint → compose config → infra up → health checks → SQLMesh plan → run → test → query → teardown.
+
+### Orb-native
+
+```bash
+just verify-orb
+```
+
+Runs: lint → clean → start native services → health checks → SQLMesh plan → run → test → query → smoke → teardown.
 
 ## Services
 
@@ -85,7 +108,21 @@ All commands run via `just`. Run `just --list` to see all recipes.
 
 | Command | Purpose |
 |---------|---------|
-| `just verify` | Full stack: lint → infra → plan → run → test → query → teardown |
+| `just verify` | Docker full stack: lint → infra → plan → run → test → query → teardown |
+| `just verify-orb` | Orb-native full stack: lint → native infra → plan → run → test → query → teardown |
+
+### Orb-native (no Docker)
+
+| Command | Purpose |
+|---------|---------|
+| `just orb-setup` | Install JDK 24, Trino, MinIO, Lakekeeper, PostgreSQL |
+| `just orb-up` | Start all services as native processes |
+| `just orb-down` | Stop all native services |
+| `just orb-status` | Show native service status (process + port) |
+| `just orb-logs [svc]` | Tail native service logs |
+| `just orb-health` | Health-check native services |
+| `just orb-clean` | Stop and wipe all native data (destructive) |
+| `just orb-trino-query "SQL"` | Query native Trino via CLI |
 
 ## Project Structure
 
@@ -161,3 +198,87 @@ WITH (
 | MINIO_ROOT_USER | minio-root-user | MinIO admin user |
 | MINIO_ROOT_PASSWORD | minio-root-password | MinIO admin password |
 | LAKEKEEPER_PG_ENCRYPTION_KEY | This-is-NOT-Secure! | Lakekeeper DB encryption key |
+
+## Docker vs Orb-native Architecture
+
+| Aspect | Docker | Orb-native |
+|--------|--------|------------|
+| Services | Docker containers (docker-compose) | Native processes (scripts/orb-services.sh) |
+| PostgreSQL | postgres:17 container | PostgreSQL 15 via apt |
+| MinIO | minio:minio:RELEASE.2025-07-23 container | Prebuilt binary (same release) |
+| Lakekeeper | quay.io/lakekeeper/catalog:v0.12.4 container | Prebuilt binary (same version) |
+| Trino | trinodb/trino:476 container | Trino server tarball (same version) |
+| JDK | Bundled in Trino container | Temurin JDK 24 |
+| Hostnames | Docker DNS (lakekeeper, minio, db) | localhost |
+| Config | infra/trino/etc/, infra/trino/catalog/ | Generated at runtime in $ORB_NATIVE_DIR/trino/etc/ |
+| Data | Docker volumes | $HOME/.local/share/orb-native/ |
+| Logs | docker compose logs | $HOME/.local/share/orb-native/logs/ |
+| Metrics port | Not exposed | Lakekeeper metrics on port 9100 (to avoid MinIO port 9000 conflict) |
+
+### Orb-native storage layout
+
+```
+$HOME/.local/share/orb-native/
+├── jdk17/              JDK 24 (Temurin)
+├── trino/              Trino 476 server
+├── lakekeeper/         Lakekeeper v0.12.4 binary
+├── bin/
+│   ├── minio           MinIO server binary
+│   ├── mc              MinIO client binary
+│   └── trino           Trino CLI JAR
+├── pgdata/             PostgreSQL data directory
+├── minio-data/         MinIO data directory
+├── trino-data/         Trino data directory (logs, temp)
+├── logs/               Service log files
+└── pids/               PID files
+```
+
+## Troubleshooting
+
+### Port conflicts
+
+If a port is already in use, stop the conflicting service first:
+
+```bash
+just orb-status        # check which services are running
+just orb-down          # stop all native services
+# or
+just down              # stop Docker services
+```
+
+### Trino not starting (orb-native)
+
+Check the Trino server log:
+
+```bash
+just orb-logs trino
+cat $HOME/.local/share/orb-native/trino-data/var/log/server.log
+```
+
+Common issues:
+- **Wrong JDK version**: Trino 476 requires Java 24+. Run `just orb-setup` to install the correct JDK.
+- **Missing node.environment**: The orb-services.sh script generates this automatically. If config was manually edited, ensure `node.environment=orbnative` is set.
+
+### Lakekeeper metrics port conflict
+
+Lakekeeper defaults its metrics server to port 9000, which conflicts with MinIO. The orb-services.sh script sets `LAKEKEEPER__METRICS_PORT=9100` to avoid this.
+
+### Orphan processes
+
+If services were not stopped cleanly:
+
+```bash
+just orb-clean         # stops all services and wipes data
+# Manual cleanup if needed:
+lsof -ti :8080 | xargs kill -9  # Trino
+lsof -ti :8181 | xargs kill -9  # Lakekeeper
+lsof -ti :9000 | xargs kill -9  # MinIO
+lsof -ti :5432 | xargs kill -9  # PostgreSQL
+```
+
+## Limitations
+
+- Orb-native uses PostgreSQL 15 (via apt) instead of PostgreSQL 17 (Docker image). Lakekeeper is compatible with both.
+- The Trino CLI in orb-native is a separate JAR download (`trino-cli-476-executable.jar`), not bundled with the server tarball.
+- Lakekeeper bootstrap and warehouse creation return HTTP 204/201 on first run, HTTP 400 on subsequent runs (already bootstrapped). This is expected and handled gracefully.
+- Orb-native is designed for Amp cloud sandboxes (orbs). For local development, use the Docker Compose workflow.

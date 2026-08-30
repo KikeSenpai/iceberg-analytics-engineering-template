@@ -13,9 +13,13 @@
 
 ## Testing Workflow
 
-Follow these steps when testing infra or model changes. All commands use `just`.
+This repo supports two execution modes: **Docker** (local development) and **Orb-native** (Amp cloud sandbox, no Docker). All commands use `just`.
 
-### 1. Static checks (no infra needed)
+### Mode 1: Docker (local development)
+
+Follow these steps when testing infra or model changes.
+
+#### 1. Static checks (no infra needed)
 
 ```
 just setup          # install Python deps (uv sync)
@@ -23,7 +27,7 @@ just lint           # SQLMesh built-in linter
 just compose-check  # validate docker-compose.yml
 ```
 
-### 2. Start infrastructure
+#### 2. Start infrastructure
 
 ```
 just infra-up       # start all 8 services, wait for healthchecks
@@ -43,7 +47,7 @@ Startup order (orchestrated by Compose depends_on):
 One-shot containers (migrate, createbuckets, bootstrap, initialwarehouse) exit 0
 when done. Four persistent services (db, minio, lakekeeper, trino) stay up.
 
-### 3. Apply SQLMesh plan
+#### 3. Apply SQLMesh plan
 
 ```
 just plan-auto      # non-interactive: creates tables, loads seeds, builds models
@@ -54,7 +58,7 @@ Or interactive:
 just plan           # prompts for backfill start date
 ```
 
-### 4. Verify data
+#### 4. Verify data
 
 ```
 just run            # execute missing intervals
@@ -64,7 +68,7 @@ just smoke          # show schemas and tables via Trino CLI
 just trino-query "SELECT * FROM iceberg.raw.orders LIMIT 5"
 ```
 
-### 5. Full stack verification (one command)
+#### 5. Full stack verification (one command)
 
 ```
 just verify
@@ -75,12 +79,87 @@ SQLMesh plan → SQLMesh run → SQLMesh test → query verification → teardow
 
 Use this after any infra or model change to confirm nothing broke.
 
-### 6. Teardown
+#### 6. Teardown
 
 ```
 just down           # stop services, keep volumes
 just clean          # stop services, wipe volumes and SQLMesh state (destructive)
 ```
+
+### Mode 2: Orb-native (Amp cloud sandbox — no Docker)
+
+For Amp orbs that cannot run Docker, use the orb-native workflow. Services run
+as native processes with PID files, readiness checks, and log management.
+
+#### 1. Setup (installs all native dependencies)
+
+```
+just orb-setup      # installs JDK 24, Trino 476, MinIO, Lakekeeper, PostgreSQL, mc, trino CLI
+```
+
+Or run `.agents/setup` directly. This is idempotent — safe to re-run.
+
+#### 2. Start infrastructure
+
+```
+just orb-up         # start PostgreSQL → MinIO → Lakekeeper → Trino as processes
+just orb-health     # check all health endpoints
+just orb-status     # show process and port status
+```
+
+The service manager script is `scripts/orb-services.sh`. It handles:
+- PostgreSQL: initdb + pg_ctl (data in $ORB_NATIVE_DIR/pgdata)
+- MinIO: binary server (data in $ORB_NATIVE_DIR/minio-data, bucket auto-created)
+- Lakekeeper: migrate + serve (metadata in PostgreSQL, metrics on port 9100)
+- Trino: launcher with generated config pointing to localhost
+- Bootstrap and warehouse creation via curl API calls
+
+#### 3. Apply SQLMesh plan (same commands as Docker)
+
+```
+just plan-auto      # creates tables, loads seeds, builds models
+just run            # execute missing intervals
+just test           # run SQLMesh unit tests
+```
+
+#### 4. Query and verify
+
+```
+just fetch "SELECT COUNT(*) FROM staging.stg_orders"
+just orb-trino-query "SELECT * FROM iceberg.raw.orders LIMIT 5"
+just orb-logs trino # tail Trino server logs
+```
+
+#### 5. Full stack verification (one command)
+
+```
+just verify-orb
+```
+
+Runs: lint → compose config check → clean → start native services → health checks →
+SQLMesh plan → run → test → query → smoke (schemas/tables/data) → teardown.
+
+#### 6. Teardown
+
+```
+just orb-down       # stop all native services (keep data)
+just orb-clean      # stop and wipe all native data + SQLMesh state (destructive)
+```
+
+#### Logs and storage
+
+- Service logs: `$HOME/.local/share/orb-native/logs/`
+- Trino server log: `$HOME/.local/share/orb-native/trino-data/var/log/server.log`
+- PID files: `$HOME/.local/share/orb-native/pids/`
+- Data dirs: `pgdata/`, `minio-data/`, `trino-data/` under `$HOME/.local/share/orb-native/`
+
+#### Differences from Docker
+
+- PostgreSQL 15 (apt) instead of 17 (Docker image). Lakekeeper compatible with both.
+- Hostnames are `localhost` instead of Docker DNS names (lakekeeper, minio, db).
+- Lakekeeper metrics port is 9100 (to avoid conflict with MinIO on 9000).
+- Trino config is generated at runtime with localhost endpoints.
+- No Docker volumes — data is in `$HOME/.local/share/orb-native/`.
 
 ## Architecture
 
@@ -110,14 +189,19 @@ Trino catalog → Lakekeeper warehouse → Iceberg namespaces → Trino schemas:
 ├── audits/                          Custom audit definitions
 ├── macros/                          Custom macro definitions
 ├── tests/                           SQLMesh unit tests
+├── scripts/
+│   └── orb-services.sh              Orb-native service manager (start/stop/health/clean)
 ├── infra/
-│   ├── docker-compose.yml           Postgres + MinIO + Lakekeeper + Trino
+│   ├── docker-compose.yml           Postgres + MinIO + Lakekeeper + Trino (Docker mode)
 │   ├── trino/
 │   │   ├── etc/config.properties    Trino server config (dynamic catalog management)
 │   │   └── catalog/iceberg.properties  Iceberg REST catalog → Lakekeeper warehouse prod
 │   └── lakekeeper/
 │       └── create-warehouse.json    Warehouse bootstrap payload (warehouse "prod")
-├── justfile                         CLI command runner (all testing commands)
+├── .agents/
+│   ├── setup                        Orb setup — installs all native + Python deps
+│   └── resume                       Orb resume — fast idempotent check
+├── justfile                         CLI command runner (Docker + orb-native recipes)
 ├── pyproject.toml                   Python deps (sqlmesh[trino])
 └── .env.example                     Environment variables template
 ```
@@ -153,6 +237,15 @@ Trino catalog → Lakekeeper warehouse → Iceberg namespaces → Trino schemas:
 | `just trino-query "SQL"` | Query Trino CLI directly |
 | `just trino-shell` | Interactive Trino CLI |
 | `just smoke` | Show schemas + tables via Trino CLI |
-| `just verify` | Full stack verification + teardown |
+| `just verify` | Docker full stack verification + teardown |
+| `just verify-orb` | Orb-native full stack verification + teardown |
+| `just orb-setup` | Install native deps (JDK, Trino, MinIO, Lakekeeper, PG) |
+| `just orb-up` | Start native services |
+| `just orb-down` | Stop native services |
+| `just orb-clean` | Stop and wipe native data (destructive) |
+| `just orb-status` | Show native service status |
+| `just orb-health` | Health-check native services |
+| `just orb-logs [svc]` | Tail native service logs |
+| `just orb-trino-query "SQL"` | Query native Trino via CLI |
 | `just ui` | SQLMesh browser UI |
 | `just dag` | Render DAG as HTML |
