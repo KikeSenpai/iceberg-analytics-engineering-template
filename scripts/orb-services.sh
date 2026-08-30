@@ -189,7 +189,7 @@ lk_bootstrap() {
     local code
     code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://localhost:$LK_PORT/management/v1/bootstrap" \
         -H 'Content-Type: application/json' --data '{"accept-terms-of-use": true}' 2>/dev/null || echo "000")
-    if [ "$code" = "200" ] || [ "$code" = "409" ]; then
+    if [ "$code" = "200" ] || [ "$code" = "204" ] || [ "$code" = "409" ]; then
         log "Lakekeeper bootstrap done (HTTP $code)"
     else
         warn "Lakekeeper bootstrap returned HTTP $code (may already be bootstrapped)"
@@ -227,7 +227,7 @@ JSON
     local code
     code=$(echo "$payload" | curl -s -o /dev/null -w '%{http_code}' -X POST "http://localhost:$LK_PORT/management/v1/warehouse" \
         -H 'Content-Type: application/json' --data @- 2>/dev/null || echo "000")
-    if [ "$code" = "200" ] || [ "$code" = "409" ]; then
+    if [ "$code" = "200" ] || [ "$code" = "201" ] || [ "$code" = "409" ]; then
         log "Warehouse 'prod' created (HTTP $code)"
     else
         warn "Warehouse creation returned HTTP $code (may already exist)"
