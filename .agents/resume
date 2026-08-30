@@ -4,6 +4,8 @@ set -euo pipefail
 # Fast, idempotent reconnect check — must finish in seconds.
 # Verify tools are available and deps are synced.
 
+export PATH="$HOME/.local/bin:$PATH"
+
 if ! command -v uv &>/dev/null; then
     echo "uv missing — run .agents/setup"
     exit 1

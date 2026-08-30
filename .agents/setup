@@ -2,29 +2,51 @@
 set -euo pipefail
 
 step() { printf '\n=== %s ===\n' "$1"; }
+export PATH="$HOME/.local/bin:$PATH"
 
-step "Install uv (if missing)"
+ORB_NATIVE_DIR="${ORB_NATIVE_DIR:-$HOME/.local/share/orb-native}"
+mkdir -p "$ORB_NATIVE_DIR/bin" "$ORB_NATIVE_DIR/logs" "$ORB_NATIVE_DIR/pids"
+
+# ─── uv ───────────────────────────────────────────────────────────────────────
+step "Install uv"
 if ! command -v uv &>/dev/null; then
     curl -LsSf https://astral.sh/uv/install.sh | sh
-    export PATH="$HOME/.local/bin:$PATH"
     echo "uv installed"
 else
     echo "uv already present: $(uv --version)"
 fi
 
-step "Install just (if missing)"
+# ─── just ─────────────────────────────────────────────────────────────────────
+step "Install just"
 if ! command -v just &>/dev/null; then
     curl -sSf https://just.systems/install.sh | bash -s -- --to "$HOME/.local/bin"
-    export PATH="$HOME/.local/bin:$PATH"
     echo "just installed"
 else
     echo "just already present: $(just --version)"
 fi
 
+# ─── netcat + lsof (for port readiness and process management) ────────────────
+step "Install netcat-openbsd and lsof"
+if ! command -v nc &>/dev/null; then
+    sudo apt-get update -qq && sudo apt-get install -y -qq netcat-openbsd
+    echo "netcat installed"
+else
+    echo "netcat already present"
+fi
+if ! command -v lsof &>/dev/null; then
+    sudo apt-get install -y -qq lsof
+    echo "lsof installed"
+else
+    echo "lsof already present"
+fi
+
+# ─── Python deps ──────────────────────────────────────────────────────────────
 step "Sync Python dependencies"
+cd /home/user/workspace/repo
 uv sync
 echo "Dependencies synced"
 
+# ─── .env ─────────────────────────────────────────────────────────────────────
 step "Copy .env.example to .env (if missing)"
 if [ -f .env.example ] && [ ! -f .env ]; then
     cp -- .env.example .env
@@ -33,5 +55,121 @@ else
     echo ".env already exists or no .env.example"
 fi
 
+# ─── JDK 24 (Temurin) — Trino 476 requires Java 24 ────────────────────────────
+step "Install JDK 24 (Temurin)"
+JDK_HOME="$ORB_NATIVE_DIR/jdk17"
+JDK_VERSION="24.0.2"
+JDK_BUILD="12"
+JDK_TARBALL="OpenJDK24U-jdk_x64_linux_hotspot_${JDK_VERSION}_${JDK_BUILD}.tar.gz"
+JDK_URL="https://github.com/adoptium/temurin24-binaries/releases/download/jdk-${JDK_VERSION}%2B${JDK_BUILD}/${JDK_TARBALL}"
+if [ -x "$JDK_HOME/bin/java" ]; then
+    echo "JDK already installed: $($JDK_HOME/bin/java -version 2>&1 | head -1)"
+else
+    echo "Downloading JDK 24…"
+    curl -LsSf "$JDK_URL" -o "/tmp/$JDK_TARBALL"
+    rm -rf "$ORB_NATIVE_DIR/jdk24-tmp"
+    mkdir -p "$ORB_NATIVE_DIR/jdk24-tmp"
+    tar -xzf "/tmp/$JDK_TARBALL" -C "$ORB_NATIVE_DIR/jdk24-tmp" --strip-components=1
+    rm -rf "$JDK_HOME"
+    mv "$ORB_NATIVE_DIR/jdk24-tmp" "$JDK_HOME"
+    rm -f "/tmp/$JDK_TARBALL"
+    echo "JDK 24 installed: $($JDK_HOME/bin/java -version 2>&1 | head -1)"
+fi
+
+# ─── PostgreSQL 15 ────────────────────────────────────────────────────────────
+step "Install PostgreSQL 15"
+PG_BIN="/usr/lib/postgresql/15/bin"
+if [ -x "$PG_BIN/postgres" ]; then
+    echo "PostgreSQL 15 already installed"
+else
+    sudo apt-get install -y -qq postgresql-15
+    echo "PostgreSQL 15 installed: $("$PG_BIN/postgres" --version 2>/dev/null)"
+fi
+
+# ─── MinIO server ─────────────────────────────────────────────────────────────
+step "Install MinIO server"
+MINIO_VERSION="RELEASE.2025-07-23T15-54-02Z"
+MINIO_BIN="$ORB_NATIVE_DIR/bin/minio"
+if [ -x "$MINIO_BIN" ] && [ "$($MINIO_BIN --version 2>/dev/null | head -1)" = "minio version $MINIO_VERSION" ]; then
+    echo "MinIO $MINIO_VERSION already installed"
+else
+    echo "Downloading MinIO $MINIO_VERSION…"
+    curl -LsSf "https://dl.min.io/server/minio/release/linux-amd64/archive/minio.$MINIO_VERSION" -o "$MINIO_BIN"
+    chmod +x "$MINIO_BIN"
+    echo "MinIO $MINIO_VERSION installed"
+fi
+
+# ─── MinIO client (mc) ────────────────────────────────────────────────────────
+step "Install MinIO client (mc)"
+MC_BIN="$ORB_NATIVE_DIR/bin/mc"
+if [ -x "$MC_BIN" ]; then
+    echo "mc already installed: $(mc --version 2>/dev/null | head -1)"
+else
+    echo "Downloading mc…"
+    curl -LsSf "https://dl.min.io/client/mc/release/linux-amd64/mc" -o "$MC_BIN"
+    chmod +x "$MC_BIN"
+    echo "mc installed"
+fi
+
+# ─── Lakekeeper v0.12.4 ───────────────────────────────────────────────────────
+step "Install Lakekeeper v0.12.4"
+LK_VERSION="v0.12.4"
+LAKEKEEPER_HOME="$ORB_NATIVE_DIR/lakekeeper"
+if [ -x "$LAKEKEEPER_HOME/lakekeeper" ]; then
+    echo "Lakekeeper $LK_VERSION already installed"
+else
+    echo "Downloading Lakekeeper $LK_VERSION…"
+    curl -LsSf "https://github.com/lakekeeper/lakekeeper/releases/download/$LK_VERSION/lakekeeper-x86_64-unknown-linux-gnu.tar.gz" -o /tmp/lakekeeper.tar.gz
+    mkdir -p "$LAKEKEEPER_HOME"
+    # The tarball may contain a nested directory or the binary directly
+    tar -xzf /tmp/lakekeeper.tar.gz -C "$LAKEKEEPER_HOME"
+    # Find the lakekeeper binary if it's nested
+    if [ ! -x "$LAKEKEEPER_HOME/lakekeeper" ]; then
+        # Look for it in subdirectories
+        found=$(find "$LAKEKEEPER_HOME" -name "lakekeeper" -type f | head -1)
+        if [ -n "$found" ]; then
+            cp "$found" "$LAKEKEEPER_HOME/lakekeeper"
+            chmod +x "$LAKEKEEPER_HOME/lakekeeper"
+        fi
+    fi
+    chmod +x "$LAKEKEEPER_HOME/lakekeeper" 2>/dev/null || true
+    rm -f /tmp/lakekeeper.tar.gz
+    echo "Lakekeeper $LK_VERSION installed"
+fi
+
+# ─── Trino 476 ────────────────────────────────────────────────────────────────
+step "Install Trino 476"
+TRINO_VERSION="476"
+TRINO_HOME="$ORB_NATIVE_DIR/trino"
+if [ -x "$TRINO_HOME/bin/launcher" ]; then
+    echo "Trino $TRINO_VERSION already installed"
+else
+    echo "Downloading Trino $TRINO_VERSION…"
+    curl -LsSf "https://repo1.maven.org/maven2/io/trino/trino-server/$TRINO_VERSION/trino-server-$TRINO_VERSION.tar.gz" -o /tmp/trino-server.tar.gz
+    rm -rf "$ORB_NATIVE_DIR/trino-tmp"
+    mkdir -p "$ORB_NATIVE_DIR/trino-tmp"
+    tar -xzf /tmp/trino-server.tar.gz -C "$ORB_NATIVE_DIR/trino-tmp" --strip-components=1
+    rm -rf "$TRINO_HOME"
+    mv "$ORB_NATIVE_DIR/trino-tmp" "$TRINO_HOME"
+    rm -f /tmp/trino-server.tar.gz
+    echo "Trino $TRINO_VERSION installed"
+fi
+
+# ─── Trino CLI ────────────────────────────────────────────────────────────────
+step "Install Trino CLI"
+TRINO_CLI="$ORB_NATIVE_DIR/bin/trino"
+if [ -x "$TRINO_CLI" ]; then
+    echo "Trino CLI already installed"
+else
+    echo "Downloading Trino CLI $TRINO_VERSION…"
+    curl -LsSf "https://repo1.maven.org/maven2/io/trino/trino-cli/$TRINO_VERSION/trino-cli-$TRINO_VERSION-executable.jar" -o "$TRINO_CLI"
+    chmod +x "$TRINO_CLI"
+    echo "Trino CLI $TRINO_VERSION installed"
+fi
+
+# ─── Summary ──────────────────────────────────────────────────────────────────
 echo ""
-echo "Setup complete. Run 'just infra-up' to start services."
+echo "Setup complete."
+echo "  Docker workflow:  just infra-up && just plan-auto"
+echo "  Orb-native:       scripts/orb-services.sh start"
+echo "  Orb-native verify: just verify-orb"
