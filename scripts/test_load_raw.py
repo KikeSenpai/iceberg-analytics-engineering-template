@@ -25,8 +25,8 @@ def test_quote_identifier_basic():
     assert load_raw.quote_identifier("orders") == '"orders"'
 
 
-def test_quote_identifier_lowercase_normalisation():
-    assert load_raw.quote_identifier("Orders") == '"orders"'
+def test_quote_identifier_preserves_case():
+    assert load_raw.quote_identifier("Orders") == '"Orders"'
 
 
 def test_quote_identifier_reserved_word():
@@ -48,14 +48,19 @@ def test_quote_identifier_rejects_empty():
         raise AssertionError("Should reject empty identifier")
 
 
-def test_quote_identifier_rejects_unsafe():
-    for bad in ["order id", "col;", "col'", "1col", "col-name", "col.name"]:
-        try:
-            load_raw.quote_identifier(bad)
-        except ValueError:
-            pass
-        else:
-            raise AssertionError(f"Should reject unsafe identifier: {bad!r}")
+def test_quote_identifier_supports_source_headers():
+    assert load_raw.quote_identifier("Order ID") == '"Order ID"'
+    assert load_raw.quote_identifier("Price (EUR)") == '"Price (EUR)"'
+    assert load_raw.quote_identifier('a"b') == '"a""b"'
+
+
+def test_quote_identifier_rejects_null_byte():
+    try:
+        load_raw.quote_identifier("bad\x00header")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Should reject a null byte")
 
 
 # ─── SQL literals / parameters ───────────────────────────────────────────────
@@ -257,14 +262,14 @@ def test_validate_csv_no_headers():
             raise AssertionError("Should reject file with no headers")
 
 
-def test_validate_csv_unsafe_header():
-    with _tmp_csv(["id,col name\n1,2\n"]) as p:
+def test_validate_csv_empty_header():
+    with _tmp_csv(["id,\n1,2\n"]) as p:
         try:
             load_raw.validate_csv(p)
         except load_raw.CsvValidationError as e:
-            assert "unsafe" in str(e).lower()
+            assert "invalid" in str(e).lower()
         else:
-            raise AssertionError("Should reject unsafe header name")
+            raise AssertionError("Should reject empty header name")
 
 
 # ─── CREATE TABLE ────────────────────────────────────────────────────────────

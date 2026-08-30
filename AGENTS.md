@@ -66,7 +66,8 @@ when done. Four persistent services (db, minio, lakekeeper, trino) stay up.
 #### 3. Apply SQLMesh plan
 
 ```
-just plan-auto      # non-interactive: creates tables, loads seeds, builds models
+just load-raw       # recreates prod.raw from data/*.csv outside SQLMesh
+just plan-auto      # non-interactive: creates transformation views and tables
 ```
 
 Or interactive:
@@ -78,10 +79,10 @@ just plan           # prompts for backfill start date
 
 ```
 just run            # execute missing intervals
-just test           # run SQLMesh unit tests (none ship yet; add under tests/)
-just fetch "SELECT COUNT(*) FROM staging.stg_orders"
+just test           # run SQLMesh unit tests
+just fetch "SELECT COUNT(*) FROM staging.stg_order"
 just smoke          # show schemas and tables via Trino CLI
-just trino-query "SELECT * FROM prod.raw.orders LIMIT 5"
+just trino-query "SELECT * FROM prod.raw.\"order\" LIMIT 5"
 ```
 
 #### 5. Full stack verification (one command)
@@ -145,26 +146,32 @@ Docker volumes (`minio_data`, `postgres_data`), so data survives `just down` /
 `just infra-up`. `just clean` wipes volumes and `sqlmesh_state.db` together;
 keep them in sync, or SQLMesh state references tables that no longer exist.
 
-SQLMesh writes each model to a physical table in `sqlmesh__<schema>` (e.g.
-`prod.sqlmesh__staging.staging__stg_orders__<hash>`) and exposes it as a view
-in `<schema>` (e.g. `prod.staging.stg_orders`). Raw loader tables are physical
-tables in `prod.raw`. Use `just minio-files` to list the Parquet files.
+SQLMesh writes each model to a physical object in `sqlmesh__<schema>` and
+exposes it as a view in `<schema>`. `FULL` models (dimensions, facts, marts)
+are Iceberg tables with Parquet in MinIO (e.g.
+`prod.sqlmesh__marts.marts__business_overview__<hash>` behind
+`prod.marts.business_overview`). `VIEW` models (staging, intermediate) store
+no data files. Raw loader tables are physical Iceberg tables in `prod.raw`
+(e.g. `prod.raw."order"`); SQLMesh defines no models in `raw`. Use
+`just minio-files` to list the Parquet files.
 
 Trino catalog → Lakekeeper warehouse → Iceberg namespaces → Trino schemas:
 
 - Lakekeeper warehouse `prod` = top-level storage container (S3 bucket `warehouse`)
 - Iceberg namespace = Trino schema (e.g. `raw`, `staging`)
-- Iceberg table = Trino table (e.g. `prod.raw.orders`)
+- Iceberg table = Trino table (e.g. `prod.raw."order"`)
 
 ## Project Structure
 
 ```
 .
 ├── config.yaml                      SQLMesh config (Trino connection, DuckDB state)
-├── models/
-│   ├── raw/orders.sql               Seed model (loads CSV into Iceberg table)
-│   └── staging/stg_orders.sql       Staging model (FULL, with audits)
-├── seeds/orders.csv                 10-row fixture data
+├── models/                          SQLMesh staging, intermediate, dimension, fact, and mart models
+├── data/                            Raw CSV loader inputs
+├── external_models.yaml            SQLMesh declarations for externally loaded raw tables
+├── docs/                            Analytics and source documentation
+├── audits/                          Custom audit definitions
+├── tests/                           SQLMesh unit tests
 ├── scripts/
 │   ├── load_raw.py                  CSV-to-Iceberg raw loader
 │   └── test_load_raw.py             Raw loader unit tests

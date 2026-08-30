@@ -6,8 +6,9 @@ Place CSV files here to load them into `prod.raw.<table_name>`.
 
 - Each `*.csv` file becomes a table named after its filename (without extension).
 - Example: `data/customers.csv` → `prod.raw.customers`
-- Do not reuse a SQLMesh model name in the `raw` schema (e.g. `orders.csv`
-  collides with the `raw.orders` seed model view).
+- SQLMesh defines no models in the `raw` schema; it reads these tables as
+  external models (`external_models.yaml`). Do not add a SQLMesh model named
+  `raw.<table_name>`, or it will collide with the loaded table.
 - Reserved filenames like `order.csv` work (the table name is quoted).
 
 ## Raw-fidelity policy
@@ -21,7 +22,7 @@ Place CSV files here to load them into `prod.raw.<table_name>`.
 - Valid UTF-8 encoding (BOM tolerated).
 - First row must contain headers.
 - No duplicate headers (case-insensitive).
-- Header names must be safe identifiers: `[A-Za-z_][A-Za-z0-9_]*`.
+- Header names must be non-empty. They are safely quoted, so spaces and punctuation are supported.
 - Every data row must have the same number of fields as the headers.
 
 ## Usage

@@ -1,0 +1,21 @@
+Customer ID,Name,Customer Group ID,Email,Phone Number
+1,John Doe,1,john.doe@gmail.com          ,+1-555-123-4567
+2,Jane Smith,,jane.smith@yahoo.com        ,+44 20 7946 0958
+3,Alice Johnson,3,alice.j@example.com         ,+49-30-12345678
+4,Bob Brown,4,bob.brown@outlook.com       ,+61-2-9876-5432
+5,Carol White,,carol.white@company.com     ,+1 (555) 567-8901
+6,David Wilson,6,david.wilson@domain.co.uk   ,+33 1 44 55 66 77
+7,Emma Davis,7,emma.davis@abc.net          ,
+8,Frank Miller,,frank.m@anothermail.com     ,+91-22-1234-5678
+9,Grace Taylor,9,grace.taylor@mailservice.org,+81-3-1234-5678
+10,Henry Anderson,10,henry.anderson@website.io   ,+1-555-012-3456
+11,Irene Thomas,1,irene.thomas@samplemail.com ,+34 91 123 45 67
+12,Jack Moore,2,jack.moore@webmail.com      ,
+13,Karen Jackson,,karen.jackson@provider.net  ,+61-7-9876-1234
+14,Larry Harris,4,larry.harris@domain.net     ,+27 11 123 4567
+15,Megan Martin,5,,+1-555-567-9012
+16,Nancy Thompson,6,nancy.t@gmail.com           ,+1 (555) 678-0123
+17,Oliver Garcia,,oliver.garcia@mail.org      ,+52 55 1234 5678
+18,Patricia Martinez,8,,
+19,Quentin Lee,,quentin.lee@example.com     ,+82-2-123-4567
+20,Rachel Walker,10,rachel.walker@company.net   ,+1 (555) 012-4567

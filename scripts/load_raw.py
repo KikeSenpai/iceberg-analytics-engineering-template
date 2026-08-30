@@ -15,14 +15,12 @@ Usage:
 from __future__ import annotations
 
 import csv
-import re
 import sys
 from pathlib import Path
 
 from trino.dbapi import connect
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
-IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 BATCH_SIZE = 500
 TRINO_HOST = "localhost"
 TRINO_PORT = 8080
@@ -34,16 +32,16 @@ TRINO_CATALOG = "prod"
 
 
 def quote_identifier(value: str) -> str:
-    """Validate and quote a SQL identifier (table or column name).
+    """Quote a SQL identifier (table or column name).
 
-    The identifier must match [A-Za-z_][A-Za-z0-9_]* and is lowercased
-    before quoting so that reserved words like ``order`` work safely.
+    Double quotes are escaped per SQL rules. This supports source headers with
+    spaces and punctuation while safely handling reserved words like ``order``.
     """
     if not value:
         raise ValueError("Empty identifier")
-    if not IDENTIFIER_RE.fullmatch(value):
-        raise ValueError(f"Unsafe identifier: {value!r}")
-    return f'"{value.lower()}"'
+    if "\x00" in value:
+        raise ValueError("Identifier contains a null byte")
+    return '"' + value.replace('"', '""') + '"'
 
 
 # ─── SQL literal escaping ─────────────────────────────────────────────────────
@@ -72,7 +70,7 @@ def validate_csv(path: Path) -> tuple[list[str], list[list[str]]]:
 
     Returns ``(headers, rows)``.  Raises :class:`CsvValidationError` on any
     problem: bad encoding, missing headers, duplicate headers (case-insensitive),
-    unsafe identifiers, or inconsistent row widths.
+    invalid identifiers, or inconsistent row widths.
     """
     # Read as UTF-8 (strip BOM if present)
     try:
@@ -99,12 +97,12 @@ def validate_csv(path: Path) -> tuple[list[str], list[list[str]]]:
             )
         seen.add(lower)
 
-    # Validate every header is a safe identifier
+    # Validate every header can be represented as a quoted identifier.
     for h in headers:
         try:
             quote_identifier(h)
         except ValueError as exc:
-            raise CsvValidationError(f"{path.name}: unsafe header {h!r}") from exc
+            raise CsvValidationError(f"{path.name}: invalid header {h!r}") from exc
 
     rows = [r for r in reader if r != []]
 

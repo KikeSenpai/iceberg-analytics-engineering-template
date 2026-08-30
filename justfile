@@ -135,6 +135,7 @@ verify:
     echo "=== SQLMesh test ==="
     uv run sqlmesh test
     echo "=== Query verification ==="
+    uv run sqlmesh fetchdf "SELECT trip_count, order_count, finished_order_value_eur FROM marts.business_overview"
     just smoke
     echo "=== Storage check: Iceberg Parquet files in MinIO ==="
     before=$(just minio-files | sort)
@@ -166,3 +167,7 @@ smoke:
     docker exec "$container" trino --catalog prod --execute "SHOW TABLES FROM prod.raw" --user sqlmesh
     echo "=== Tables in staging ==="
     docker exec "$container" trino --catalog prod --execute "SHOW TABLES FROM prod.staging" --user sqlmesh
+    echo "=== Tables in marts ==="
+    docker exec "$container" trino --catalog prod --execute "SHOW TABLES FROM prod.marts" --user sqlmesh
+    echo "=== Business overview ==="
+    docker exec "$container" trino --catalog prod --execute "SELECT * FROM prod.marts.business_overview" --user sqlmesh

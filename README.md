@@ -2,6 +2,15 @@
 
 Apache Iceberg analytics stack for analytics engineer take-home tests. Trino + Iceberg + Lakekeeper + MinIO + SQLMesh, with UV for Python dependency management.
 
+## Air Service take-home
+
+This branch contains the complete Air Service analytical model. See:
+
+- [Analytical design, ERD, model dictionary, KPIs, and limitations](docs/air-service-analytics.md)
+- [Source provenance, conversion fidelity, and dataset profile](docs/data-provenance.md)
+
+Run `just verify` for a clean full-stack load, plan, execution, audit/test, query, MinIO storage and restart persistence checks, and teardown. Run `just load-raw` when services are already up.
+
 ## Tech Stack
 
 | Component | Version | Purpose |
@@ -21,7 +30,8 @@ Apache Iceberg analytics stack for analytics engineer take-home tests. Trino + I
 ```bash
 just setup        # install Python deps
 just infra-up     # start Trino, Lakekeeper, MinIO, Postgres (Docker)
-just plan-auto    # apply SQLMesh plan (creates tables, loads seeds)
+just load-raw     # load data/*.csv into prod.raw outside SQLMesh
+just plan-auto    # apply SQLMesh plan
 just run          # run models
 just test         # run tests
 ```
@@ -123,8 +133,11 @@ All commands run via `just`. Run `just --list` to see all recipes.
 
 ```
 models/          SQLMesh models (SQL files)
-seeds/           CSV fixture data
-data/            Raw CSV files — loaded by `just load-raw` into prod.raw.*
+data/            Raw loader input CSVs
+audits/          SQLMesh data audits
+tests/           SQLMesh unit tests
+docs/            Analytics and source documentation
+scripts/         Raw loader and validation tools
 infra/           Docker Compose + Trino/Lakekeeper config
 config.yaml      SQLMesh project config
 justfile         CLI recipes
@@ -161,15 +174,15 @@ graph LR
 
     subgraph "Lakekeeper warehouse 'prod'"
         ns_raw["namespace: raw"]
-        ns_staging["namespace: staging"]
-        ns_phys["namespaces: sqlmesh__raw, sqlmesh__staging"]
+        ns_logical["namespaces: staging, intermediate, dimensions, facts, marts"]
+        ns_phys["namespaces: sqlmesh__staging, sqlmesh__intermediate, sqlmesh__dimensions, sqlmesh__facts, sqlmesh__marts"]
     end
     lakekeeper --- ns_raw
-    lakekeeper --- ns_staging
+    lakekeeper --- ns_logical
     lakekeeper --- ns_phys
-    ns_raw -- "view" --> tbl_orders["orders"]
-    ns_staging -- "view" --> tbl_stg["stg_orders"]
-    ns_phys -- "physical tables" --> tbl_phys["raw__orders__hash, staging__stg_orders__hash"]
+    ns_raw -- "table (just load-raw)" --> tbl_raw["order, trip, customer, ..."]
+    ns_logical -- "view" --> tbl_views["stg_order, fct_trip, business_overview, ..."]
+    ns_phys -- "FULL: tables, VIEW: views" --> tbl_phys["facts__fct_trip__hash, marts__business_overview__hash, ..."]
 ```
 
 ### Catalog and namespace hierarchy
@@ -192,13 +205,15 @@ different concepts.
 ```
 Lakekeeper (metadata service)
 └── warehouse "prod" (MinIO bucket "warehouse")
-    ├── namespace "raw"                → Trino schema: prod.raw
-    │   ├── view "orders"              → SQLMesh view over sqlmesh__raw
-    │   └── table "<csv name>"         → raw loader tables (just load-raw)
-    ├── namespace "staging"            → Trino schema: prod.staging
-    │   └── view "stg_orders"          → SQLMesh view over sqlmesh__staging
-    ├── namespace "sqlmesh__raw"       → SQLMesh physical tables (Parquet in MinIO)
-    └── namespace "sqlmesh__staging"   → SQLMesh physical tables (Parquet in MinIO)
+    ├── namespace "raw"                    → Trino schema: prod.raw
+    │   └── table "order", "trip", ...     → raw loader tables (just load-raw, Parquet in MinIO)
+    ├── namespace "staging"                → Trino schema: prod.staging
+    │   └── view "stg_order", ...          → SQLMesh view over sqlmesh__staging
+    ├── namespace "marts"                  → Trino schema: prod.marts
+    │   └── view "business_overview", ...  → SQLMesh view over sqlmesh__marts
+    ├── namespace "sqlmesh__staging"       → SQLMesh VIEW models (no data files)
+    └── namespace "sqlmesh__marts"         → SQLMesh FULL tables (Parquet in MinIO)
+    (intermediate / dimensions / facts follow the same pattern)
 ```
 
 **Example:**
@@ -206,8 +221,8 @@ Lakekeeper (metadata service)
 ```sql
 -- prod = Trino catalog (from prod.properties)
 -- raw = Iceberg namespace (Trino schema)
--- orders = Iceberg table (Trino table)
-SELECT * FROM prod.raw.orders LIMIT 5;
+-- "order" = Iceberg table (quoted because it is reserved)
+SELECT * FROM prod.raw."order" LIMIT 5;
 ```
 
 - SQLMesh connects to Trino via JDBC and submits all model SQL there.
@@ -217,10 +232,11 @@ SELECT * FROM prod.raw.orders LIMIT 5;
 - Trino reads/writes Parquet data files and Iceberg metadata files in MinIO
   (`s3://warehouse/<namespace-id>/<table>-<id>/{data,metadata}/`) through the
   S3 endpoint `http://minio:9000` with path-style access.
-- SQLMesh writes each model to a physical table in a `sqlmesh__<schema>`
-  namespace (e.g. `prod.sqlmesh__staging.staging__stg_orders__<hash>`) and
-  exposes it as a view in `<schema>` (e.g. `prod.staging.stg_orders`). The
-  physical tables' Parquet files are in MinIO like the raw tables.
+- SQLMesh writes each model to a physical object in a `sqlmesh__<schema>`
+  namespace (e.g. `prod.sqlmesh__marts.marts__business_overview__<hash>`) and
+  exposes it as a view in `<schema>` (e.g. `prod.marts.business_overview`).
+  `FULL` models (dimensions, facts, marts) store Parquet in MinIO like the raw
+  loader tables; `VIEW` models (staging, intermediate) store no data files.
 - Namespace = Trino schema (e.g. `raw`, `staging`). Table = Iceberg table.
 
 Static catalog `prod` loads at startup (points to warehouse `prod`).

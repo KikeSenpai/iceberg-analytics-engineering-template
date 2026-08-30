@@ -1,0 +1,48 @@
+- name: raw.aeroplane
+  description: Raw aeroplane CSV loaded outside SQLMesh.
+  columns:
+    Airplane ID: varchar
+    Airplane Model: varchar
+    Manufacturer: varchar
+- name: raw.aeroplane_model
+  description: Lossless tabular conversion of supplied aeroplane model JSON.
+  columns:
+    manufacturer: varchar
+    model: varchar
+    max_seats: varchar
+    max_weight: varchar
+    max_distance: varchar
+    engine_type: varchar
+- name: raw.customer
+  description: Raw customer CSV loaded outside SQLMesh.
+  columns:
+    Customer ID: varchar
+    Name: varchar
+    Customer Group ID: varchar
+    Email: varchar
+    Phone Number: varchar
+- name: raw.customer_group
+  description: Raw customer group CSV loaded outside SQLMesh.
+  columns:
+    ID: varchar
+    Type: varchar
+    Name: varchar
+    Registry number: varchar
+- name: 'raw."order"'
+  description: Raw order CSV loaded outside SQLMesh.
+  columns:
+    Order ID: varchar
+    Customer ID: varchar
+    Trip ID: varchar
+    Price (EUR): varchar
+    Seat No: varchar
+    Status: varchar
+- name: raw.trip
+  description: Raw trip CSV loaded outside SQLMesh.
+  columns:
+    Trip ID: varchar
+    Origin City: varchar
+    Destination City: varchar
+    Airplane ID: varchar
+    Start Timestamp: varchar
+    End Timestamp: varchar
