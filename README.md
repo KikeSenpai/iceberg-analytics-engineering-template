@@ -46,7 +46,7 @@ just orb-down     # stop services
 just verify
 ```
 
-Runs: lint → compose config → infra up → health checks → SQLMesh plan → run → test → query → teardown.
+Runs: lint → compose config → infra up → health checks → raw load → SQLMesh plan → run → test → smoke → teardown.
 
 ### Orb-native
 
@@ -54,7 +54,7 @@ Runs: lint → compose config → infra up → health checks → SQLMesh plan �
 just verify-orb
 ```
 
-Runs: lint → clean → start native services → health checks → SQLMesh plan → run → test → query → smoke → teardown.
+Runs: lint → clean → start native services → health checks → raw load → SQLMesh plan → run → test → smoke → teardown. Uses a trap/finalizer for cleanup on success or failure.
 
 ## Services
 
@@ -115,8 +115,8 @@ All commands run via `just`. Run `just --list` to see all recipes.
 
 | Command | Purpose |
 |---------|---------|
-| `just verify` | Docker full stack: lint → infra → plan → run → test → query → teardown |
-| `just verify-orb` | Orb-native full stack: lint → native infra → plan → run → test → query → teardown |
+| `just verify` | Docker full stack: lint → infra → raw load → plan → run → test → smoke → teardown |
+| `just verify-orb` | Orb-native full stack: lint → native infra → raw load → plan → run → test → smoke → teardown |
 
 ### Orb-native (no Docker)
 

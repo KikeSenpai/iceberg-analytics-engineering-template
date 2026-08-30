@@ -75,7 +75,7 @@ just verify
 ```
 
 Runs the entire chain: lint → compose config → infra up → health check →
-SQLMesh plan → SQLMesh run → SQLMesh test → query verification → teardown.
+raw load → SQLMesh plan → SQLMesh run → SQLMesh test → smoke → teardown.
 
 Use this after any infra or model change to confirm nothing broke.
 
@@ -137,7 +137,8 @@ just verify-orb
 ```
 
 Runs: lint → compose config check → clean → start native services → health checks →
-SQLMesh plan → run → test → query → smoke (schemas/tables/data) → teardown.
+raw load → SQLMesh plan → run → test → smoke (schemas/tables) → teardown.
+Uses a trap/finalizer so services and runtime state are cleaned on success or failure.
 
 #### 6. Teardown
 
@@ -252,8 +253,8 @@ generic loader (`scripts/load_raw.py`).
 | `just trino-query "SQL"` | Query Trino CLI directly |
 | `just trino-shell` | Interactive Trino CLI |
 | `just smoke` | Show schemas + tables via Trino CLI |
-| `just verify` | Docker full stack verification + teardown |
-| `just verify-orb` | Orb-native full stack verification + teardown |
+| `just verify` | Docker full stack: lint → infra → raw load → plan → run → test → smoke → teardown |
+| `just verify-orb` | Orb-native full stack: lint → native infra → raw load → plan → run → test → smoke → teardown |
 | `just orb-setup` | Install native deps (JDK, Trino, MinIO, Lakekeeper, PG) |
 | `just orb-up` | Start native services |
 | `just orb-down` | Stop native services |
