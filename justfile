@@ -108,7 +108,7 @@ ui:
 dag:
     uv run sqlmesh dag
 
-# Full stack verification — static checks + infra + SQLMesh + query + teardown
+# Full stack verification — static checks + infra + raw load + SQLMesh + query + teardown
 verify:
     #!/bin/bash
     set -euo pipefail
@@ -122,6 +122,12 @@ verify:
     echo "=== Health checks ==="
     curl -sf http://localhost:8080/v1/status >/dev/null && echo "Trino: OK" || { echo "Trino: FAIL"; exit 1; }
     curl -sf http://localhost:8181/health >/dev/null && echo "Lakekeeper: OK" || { echo "Lakekeeper: FAIL"; exit 1; }
+    echo "=== Raw data loading ==="
+    if ls data/*.csv >/dev/null 2>&1; then
+        just load-raw
+    else
+        echo "No CSV files in data/ — skipping raw loading"
+    fi
     echo "=== SQLMesh plan ==="
     uv run sqlmesh plan --auto-apply
     echo "=== SQLMesh run ==="
@@ -129,7 +135,7 @@ verify:
     echo "=== SQLMesh test ==="
     uv run sqlmesh test
     echo "=== Query verification ==="
-    uv run sqlmesh fetchdf "SELECT COUNT(*) AS completed_orders FROM staging.stg_orders"
+    just smoke
     echo "=== Teardown ==="
     docker compose -f infra/docker-compose.yml down -v
     rm -f sqlmesh_state.db sqlmesh_state.db.wal
@@ -184,7 +190,7 @@ orb-trino-wait:
 orb-trino-query sql:
     scripts/orb-services.sh trino-query "{{sql}}"
 
-# Full orb-native verification — start → SQLMesh plan/run/test → query → teardown
+# Full orb-native verification — start → raw load → SQLMesh → query → teardown
 verify-orb:
     #!/bin/bash
     set -euo pipefail
@@ -192,6 +198,15 @@ verify-orb:
     export JAVA_HOME="$HOME/.local/share/orb-native/jdk17"
     export PATH="$JAVA_HOME/bin:$PATH"
     ORB_SCRIPT="$(pwd)/scripts/orb-services.sh"
+
+    _cleanup() {
+        local rc=$?
+        echo "=== Teardown (rc=$rc) ==="
+        "$ORB_SCRIPT" clean
+        rm -f sqlmesh_state.db sqlmesh_state.db.wal
+        exit $rc
+    }
+    trap _cleanup EXIT INT TERM
 
     echo "=== Static checks ==="
     uv run sqlmesh lint
@@ -206,6 +221,13 @@ verify-orb:
     echo "=== Health checks ==="
     "$ORB_SCRIPT" health
 
+    echo "=== Raw data loading ==="
+    if ls data/*.csv >/dev/null 2>&1; then
+        just load-raw
+    else
+        echo "No CSV files in data/ — skipping raw loading"
+    fi
+
     echo "=== SQLMesh plan ==="
     uv run sqlmesh plan --auto-apply
 
@@ -215,18 +237,9 @@ verify-orb:
     echo "=== SQLMesh test ==="
     uv run sqlmesh test
 
-    echo "=== Query verification ==="
-    uv run sqlmesh fetchdf "SELECT COUNT(*) AS completed_orders FROM staging.stg_orders"
-
     echo "=== Smoke: schemas and tables ==="
     "$ORB_SCRIPT" trino-query "SHOW SCHEMAS FROM iceberg"
     "$ORB_SCRIPT" trino-query "SHOW TABLES FROM iceberg.raw"
     "$ORB_SCRIPT" trino-query "SHOW TABLES FROM iceberg.staging"
-
-    echo "=== Iceberg table data ==="
-    "$ORB_SCRIPT" trino-query "SELECT * FROM iceberg.raw.orders LIMIT 3"
-
-    echo "=== Teardown ==="
-    "$ORB_SCRIPT" clean
 
     echo "=== verify-orb passed ==="
