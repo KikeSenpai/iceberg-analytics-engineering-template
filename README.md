@@ -2,6 +2,15 @@
 
 Apache Iceberg analytics stack for analytics engineer take-home tests. Trino + Iceberg + Lakekeeper + MinIO + SQLMesh, with UV for Python dependency management.
 
+## Air Service take-home
+
+This branch contains the complete Air Service analytical model. See:
+
+- [Analytical design, ERD, model dictionary, KPIs, and limitations](docs/air-service-analytics.md)
+- [Source provenance, conversion fidelity, and dataset profile](docs/data-provenance.md)
+
+Run `just verify-orb` for a clean native full-stack load, plan, execution, audit/test, query, and teardown. Run `just load-raw` when services are already up.
+
 ## Tech Stack
 
 | Component | Version | Purpose |
@@ -22,7 +31,8 @@ Apache Iceberg analytics stack for analytics engineer take-home tests. Trino + I
 cp .env.example .env
 just setup        # install Python deps
 just infra-up     # start Trino, Lakekeeper, MinIO, Postgres (Docker)
-just plan-auto    # apply SQLMesh plan (creates tables, loads seeds)
+just load-raw     # load data/*.csv into prod.raw outside SQLMesh
+just plan-auto    # apply SQLMesh plan
 just run          # run models
 just test         # run tests
 ```
@@ -32,6 +42,7 @@ just test         # run tests
 ```bash
 just orb-setup    # install JDK 24, Trino, MinIO, Lakekeeper, PostgreSQL
 just orb-up       # start all services as native processes
+just load-raw     # load data/*.csv into prod.raw outside SQLMesh
 just plan-auto    # apply SQLMesh plan
 just run          # run models
 just test         # run tests
@@ -135,8 +146,11 @@ All commands run via `just`. Run `just --list` to see all recipes.
 
 ```
 models/          SQLMesh models (SQL files)
-seeds/           CSV fixture data
-data/            Raw CSV files — loaded by `just load-raw` into prod.raw.*
+data/            Raw loader input CSVs
+audits/          SQLMesh data audits
+tests/           SQLMesh unit tests
+docs/            Analytics and source documentation
+scripts/         Raw loader and orb-native service tools
 infra/           Docker Compose + Trino/Lakekeeper config
 config.yaml      SQLMesh project config
 justfile         CLI recipes
@@ -176,8 +190,8 @@ graph LR
     end
     lakekeeper --- ns_raw
     lakekeeper --- ns_staging
-    ns_raw -- "table" --> tbl_orders["orders"]
-    ns_staging -- "table" --> tbl_stg["stg_orders"]
+    ns_raw -- "table" --> tbl_orders["order"]
+    ns_staging -- "view" --> tbl_stg["stg_order"]
 ```
 
 ### Catalog and namespace hierarchy
@@ -201,9 +215,9 @@ different concepts.
 Lakekeeper (metadata service)
 └── warehouse "prod" (S3 bucket "warehouse")
     ├── namespace "raw"        → Trino schema: prod.raw
-    │   └── table "orders"     → Trino table: prod.raw.orders
+    │   └── table "order"      → Trino table: prod.raw."order"
     └── namespace "staging"    → Trino schema: prod.staging
-        └── table "stg_orders" → Trino table: prod.staging.stg_orders
+        └── view "stg_order"   → Trino view: prod.staging.stg_order
 ```
 
 **Example:**
@@ -211,8 +225,8 @@ Lakekeeper (metadata service)
 ```sql
 -- prod = Trino catalog (from prod.properties)
 -- raw = Iceberg namespace (Trino schema)
--- orders = Iceberg table (Trino table)
-SELECT * FROM prod.raw.orders LIMIT 5;
+-- "order" = Iceberg table (quoted because it is reserved)
+SELECT * FROM prod.raw."order" LIMIT 5;
 ```
 
 - SQLMesh connects to Trino via JDBC and submits all model SQL there.

@@ -135,6 +135,7 @@ verify:
     echo "=== SQLMesh test ==="
     uv run sqlmesh test
     echo "=== Query verification ==="
+    uv run sqlmesh fetchdf "SELECT trip_count, order_count, finished_order_value_eur FROM marts.business_overview"
     just smoke
     echo "=== Teardown ==="
     docker compose -f infra/docker-compose.yml down -v
@@ -151,6 +152,10 @@ smoke:
     docker exec "$container" trino --catalog prod --execute "SHOW TABLES FROM prod.raw" --user sqlmesh
     echo "=== Tables in staging ==="
     docker exec "$container" trino --catalog prod --execute "SHOW TABLES FROM prod.staging" --user sqlmesh
+    echo "=== Tables in marts ==="
+    docker exec "$container" trino --catalog prod --execute "SHOW TABLES FROM prod.marts" --user sqlmesh
+    echo "=== Business overview ==="
+    docker exec "$container" trino --catalog prod --execute "SELECT * FROM prod.marts.business_overview" --user sqlmesh
 
 # ─── Orb-native (no Docker) ───────────────────────────────────────────────────
 
@@ -237,9 +242,16 @@ verify-orb:
     echo "=== SQLMesh test ==="
     uv run sqlmesh test
 
+    echo "=== Query verification ==="
+    uv run sqlmesh fetchdf "SELECT trip_count, order_count, finished_order_value_eur FROM marts.business_overview"
+
     echo "=== Smoke: schemas and tables ==="
     "$ORB_SCRIPT" trino-query "SHOW SCHEMAS FROM prod"
     "$ORB_SCRIPT" trino-query "SHOW TABLES FROM prod.raw"
     "$ORB_SCRIPT" trino-query "SHOW TABLES FROM prod.staging"
+    "$ORB_SCRIPT" trino-query "SHOW TABLES FROM prod.marts"
+
+    echo "=== Business overview ==="
+    "$ORB_SCRIPT" trino-query "SELECT * FROM prod.marts.business_overview"
 
     echo "=== verify-orb passed ==="

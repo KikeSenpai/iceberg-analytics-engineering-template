@@ -19,7 +19,7 @@ Place CSV files here to load them into `prod.raw.<table_name>`.
 - Valid UTF-8 encoding (BOM tolerated).
 - First row must contain headers.
 - No duplicate headers (case-insensitive).
-- Header names must be safe identifiers: `[A-Za-z_][A-Za-z0-9_]*`.
+- Header names must be non-empty. They are safely quoted, so spaces and punctuation are supported.
 - Every data row must have the same number of fields as the headers.
 
 ## Usage

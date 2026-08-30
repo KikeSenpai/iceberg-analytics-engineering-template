@@ -1,0 +1,122 @@
+test_customer_group_reference_classification:
+  model: intermediate.int_customer_enriched
+  inputs:
+    staging.stg_customer:
+      rows:
+        - customer_id: 1
+          customer_name: Individual
+          customer_group_id: null
+        - customer_id: 2
+          customer_name: Grouped
+          customer_group_id: 10
+        - customer_id: 3
+          customer_name: Unresolved
+          customer_group_id: 99
+    staging.stg_customer_group:
+      rows:
+        - customer_group_id: 10
+          group_type: Company
+          group_name: Example Co
+  outputs:
+    query:
+      partial: true
+      rows:
+        - customer_id: 1
+          group_reference_status: individual
+        - customer_id: 2
+          group_reference_status: resolved
+        - customer_id: 3
+          group_reference_status: unresolved
+
+test_order_value_semantics:
+  model: intermediate.int_order_enriched
+  inputs:
+    staging.stg_order:
+      rows:
+        - order_id: 1
+          customer_id: 1
+          trip_id: 10
+          price_eur: 999.00
+          seat_number: 1A
+          order_status: finished
+        - order_id: 2
+          customer_id: 1
+          trip_id: 10
+          price_eur: 2000.00
+          seat_number: 1B
+          order_status: cancelled
+    intermediate.int_customer_enriched:
+      rows:
+        - customer_id: 1
+          customer_name: Example
+          group_reference_status: individual
+    intermediate.int_trip_enriched:
+      rows:
+        - trip_id: 10
+          trip_date: 2024-08-01
+          trip_week: 2024-07-29
+          trip_month: 2024-08-01
+          origin_city: London
+          origin_country: United Kingdom
+          origin_region: Europe
+          destination_city: Paris
+          destination_country: France
+          destination_region: Europe
+          route_name: London / Paris
+          airplane_id: 1
+          manufacturer: Example
+          airplane_model: Example 1
+          max_seats: 10
+  outputs:
+    query:
+      partial: true
+      rows:
+        - order_id: 1
+          price_tier: under_1000_eur
+          is_active_order: true
+          finished_order_value_eur: 999.00
+          booked_pipeline_value_eur: 0.00
+          active_order_value_eur: 999.00
+        - order_id: 2
+          price_tier: 2000_eur_and_over
+          is_active_order: false
+          finished_order_value_eur: 0.00
+          booked_pipeline_value_eur: 0.00
+          active_order_value_eur: 0.00
+
+test_trip_keeps_zero_order_inventory:
+  model: facts.fct_trip
+  inputs:
+    intermediate.int_trip_enriched:
+      rows:
+        - trip_id: 1
+          origin_city: London
+          origin_country: United Kingdom
+          origin_region: Europe
+          destination_city: Paris
+          destination_country: France
+          destination_region: Europe
+          route_name: London / Paris
+          airplane_id: 1
+          manufacturer: Example
+          airplane_model: Example 1
+          max_seats: 10
+          max_weight: 1000
+          max_distance: 500
+          engine_type: Example
+          start_timestamp: 2024-08-01 10:00:00
+          end_timestamp: 2024-08-01 11:00:00
+          trip_date: 2024-08-01
+          trip_week: 2024-07-29
+          trip_month: 2024-08-01
+          chronology_status: ordered_local_timestamps
+    intermediate.int_order_enriched:
+      rows: []
+  outputs:
+    query:
+      partial: true
+      rows:
+        - trip_id: 1
+          order_count: 0
+          active_seat_count: 0
+          observed_seat_utilization: 0

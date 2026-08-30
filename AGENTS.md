@@ -50,7 +50,8 @@ when done. Four persistent services (db, minio, lakekeeper, trino) stay up.
 #### 3. Apply SQLMesh plan
 
 ```
-just plan-auto      # non-interactive: creates tables, loads seeds, builds models
+just load-raw       # recreates prod.raw from data/*.csv outside SQLMesh
+just plan-auto      # non-interactive: creates transformation views and tables
 ```
 
 Or interactive:
@@ -63,9 +64,9 @@ just plan           # prompts for backfill start date
 ```
 just run            # execute missing intervals
 just test           # run SQLMesh unit tests
-just fetch "SELECT COUNT(*) FROM staging.stg_orders"
+just fetch "SELECT COUNT(*) FROM staging.stg_order"
 just smoke          # show schemas and tables via Trino CLI
-just trino-query "SELECT * FROM prod.raw.orders LIMIT 5"
+just trino-query "SELECT * FROM prod.raw.\"order\" LIMIT 5"
 ```
 
 #### 5. Full stack verification (one command)
@@ -117,7 +118,8 @@ The service manager script is `scripts/orb-services.sh`. It handles:
 #### 3. Apply SQLMesh plan (same commands as Docker)
 
 ```
-just plan-auto      # creates tables, loads seeds, builds models
+just load-raw       # recreates prod.raw from data/*.csv outside SQLMesh
+just plan-auto      # creates transformation views and tables
 just run            # execute missing intervals
 just test           # run SQLMesh unit tests
 ```
@@ -125,8 +127,8 @@ just test           # run SQLMesh unit tests
 #### 4. Query and verify
 
 ```
-just fetch "SELECT COUNT(*) FROM staging.stg_orders"
-just orb-trino-query "SELECT * FROM prod.raw.orders LIMIT 5"
+just fetch "SELECT COUNT(*) FROM staging.stg_order"
+just orb-trino-query "SELECT * FROM prod.raw.\"order\" LIMIT 5"
 just orb-logs trino # tail Trino server logs
 ```
 
@@ -180,17 +182,17 @@ Trino catalog → Lakekeeper warehouse → Iceberg namespaces → Trino schemas:
 
 - Lakekeeper warehouse `prod` = top-level storage container (S3 bucket `warehouse`)
 - Iceberg namespace = Trino schema (e.g. `raw`, `staging`)
-- Iceberg table = Trino table (e.g. `prod.raw.orders`)
+- Iceberg table = Trino table (e.g. `prod.raw."order"`)
 
 ## Project Structure
 
 ```
 .
 ├── config.yaml                      SQLMesh config (Trino connection, DuckDB state)
-├── models/
-│   ├── raw/orders.sql               Seed model (loads CSV into Iceberg table)
-│   └── staging/stg_orders.sql       Staging model (FULL, with audits)
-├── seeds/orders.csv                 10-row fixture data
+├── models/                          SQLMesh staging, intermediate, dimension, fact, and mart models
+├── data/                            Raw CSV loader inputs
+├── external_models.yaml            SQLMesh declarations for externally loaded raw tables
+├── docs/                            Analytics and source documentation
 ├── audits/                          Custom audit definitions
 ├── macros/                          Custom macro definitions
 ├── tests/                           SQLMesh unit tests
