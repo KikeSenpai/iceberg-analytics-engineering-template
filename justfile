@@ -137,3 +137,88 @@ smoke:
     docker exec "$container" trino --catalog iceberg --execute "SHOW TABLES FROM iceberg.raw" --user sqlmesh
     echo "=== Tables in staging ==="
     docker exec "$container" trino --catalog iceberg --execute "SHOW TABLES FROM iceberg.staging" --user sqlmesh
+
+# ─── Orb-native (no Docker) ───────────────────────────────────────────────────
+
+# Install all orb-native dependencies (JDK, Trino, MinIO, Lakekeeper, PostgreSQL)
+orb-setup:
+    bash .agents/setup
+
+# Start all services natively (PostgreSQL → MinIO → Lakekeeper → Trino)
+orb-up:
+    scripts/orb-services.sh start
+
+# Stop all native services
+orb-down:
+    scripts/orb-services.sh stop
+
+# Show native service status
+orb-status:
+    scripts/orb-services.sh status
+
+# Tail native service logs (optional service name: postgres|minio|lakekeeper|trino)
+orb-logs service="trino":
+    scripts/orb-services.sh logs {{service}}
+
+# Health-check native services
+orb-health:
+    scripts/orb-services.sh health
+
+# Stop and wipe all native data (destructive)
+orb-clean:
+    scripts/orb-services.sh clean
+
+# Wait for native Trino to be ready
+orb-trino-wait:
+    scripts/orb-services.sh trino-wait
+
+# Query native Trino via CLI
+orb-trino-query sql:
+    scripts/orb-services.sh trino-query "{{sql}}"
+
+# Full orb-native verification — start → SQLMesh plan/run/test → query → teardown
+verify-orb:
+    #!/bin/bash
+    set -euo pipefail
+    export PATH="$HOME/.local/bin:$PATH"
+    export JAVA_HOME="$HOME/.local/share/orb-native/jdk17"
+    export PATH="$JAVA_HOME/bin:$PATH"
+    ORB_SCRIPT="$(pwd)/scripts/orb-services.sh"
+
+    echo "=== Static checks ==="
+    uv run sqlmesh lint
+    docker compose -f infra/docker-compose.yml config --quiet 2>/dev/null && echo "Compose config: OK" || echo "Compose config: skipped (Docker not available)"
+
+    echo "=== Clean slate ==="
+    "$ORB_SCRIPT" clean
+
+    echo "=== Starting orb-native services ==="
+    "$ORB_SCRIPT" start
+
+    echo "=== Health checks ==="
+    "$ORB_SCRIPT" health
+
+    echo "=== SQLMesh plan ==="
+    uv run sqlmesh plan --auto-apply
+
+    echo "=== SQLMesh run ==="
+    uv run sqlmesh run
+
+    echo "=== SQLMesh test ==="
+    uv run sqlmesh test
+
+    echo "=== Query verification ==="
+    uv run sqlmesh fetchdf "SELECT COUNT(*) AS completed_orders FROM staging.stg_orders"
+
+    echo "=== Smoke: schemas and tables ==="
+    "$ORB_SCRIPT" trino-query "SHOW SCHEMAS FROM iceberg"
+    "$ORB_SCRIPT" trino-query "SHOW TABLES FROM iceberg.raw"
+    "$ORB_SCRIPT" trino-query "SHOW TABLES FROM iceberg.staging"
+
+    echo "=== Iceberg table data ==="
+    "$ORB_SCRIPT" trino-query "SELECT * FROM iceberg.raw.orders LIMIT 3"
+
+    echo "=== Teardown ==="
+    "$ORB_SCRIPT" clean
+
+    echo "=== verify-orb passed ==="
