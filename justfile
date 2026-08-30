@@ -136,6 +136,7 @@ verify:
     uv run sqlmesh test
     echo "=== Query verification ==="
     just smoke
+    uv run sqlmesh fetchdf "SELECT COUNT(*) AS report_rows FROM analytics.rep_sales_funnel_monthly"
     echo "=== Storage check: Iceberg Parquet files in MinIO ==="
     before=$(just minio-files | sort)
     echo "$before"
@@ -147,6 +148,7 @@ verify:
     after=$(just minio-files | sort)
     [ "$before" = "$after" ] && echo "MinIO objects survived restart" || { echo "MinIO objects changed after restart"; exit 1; }
     just smoke
+    uv run sqlmesh fetchdf "SELECT COUNT(*) AS report_rows FROM analytics.rep_sales_funnel_monthly"
     echo "=== Teardown ==="
     docker compose -f infra/docker-compose.yml down -v
     rm -f sqlmesh_state.db sqlmesh_state.db.wal
