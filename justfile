@@ -50,6 +50,14 @@ trino-wait:
     echo "Trino not ready after 60s"
     exit 1
 
+# Load CSV files from data/ into iceberg.raw tables (requires running infrastructure)
+load-raw:
+    uv run python scripts/load_raw.py
+
+# Run unit tests for the raw loader
+test-load-raw:
+    uv run python scripts/test_load_raw.py
+
 # Apply SQLMesh plan (interactive — prompts for backfill start date)
 plan:
     uv run sqlmesh plan
