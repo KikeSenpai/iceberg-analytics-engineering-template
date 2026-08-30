@@ -1,0 +1,97 @@
+test_funnel_step_events_maps_and_deduplicates:
+  model: intermediate.int_pipedrive__funnel_step_events
+  inputs:
+    staging.stg_pipedrive__deal_changes:
+      rows:
+        - deal_change_key: stage-a
+          deal_id: 10
+          changed_at: '2024-01-02 09:00:00'
+          changed_field_key: stage_id
+          new_value: '1'
+    intermediate.int_pipedrive__deal_episodes:
+      rows:
+        - deal_episode_key: 10|2024-01-01 09:00:00
+          deal_id: 10
+          created_at: '2024-01-01 09:00:00'
+          lifecycle_time_signature: 32400
+    staging.stg_pipedrive__stages:
+      rows:
+        - stage_id: 1
+          stage_name: Lead Generation
+    staging.stg_pipedrive__activities:
+      rows:
+        - activity_record_key: call-late
+          activity_id: 2
+          activity_type: meeting
+          assigned_user_id: 1
+          deal_id: 20
+          is_done: true
+          due_at: '2024-01-05 10:00:00'
+        - activity_record_key: call-first
+          activity_id: 1
+          activity_type: meeting
+          assigned_user_id: 1
+          deal_id: 20
+          is_done: true
+          due_at: '2024-01-03 10:00:00'
+    staging.stg_pipedrive__activity_types:
+      rows:
+        - activity_type_id: 1
+          activity_type_name: Sales Call 1
+          activity_type: meeting
+          is_active: true
+  outputs:
+    query:
+      partial: true
+      rows:
+        - funnel_entity_key: deal_episode|10|2024-01-01 09:00:00
+          event_at: '2024-01-02 09:00:00'
+          kpi_name: Lead Generation
+          funnel_step: Step 1
+          event_source: deal_stage
+        - funnel_entity_key: activity_deal|20
+          event_at: '2024-01-03 10:00:00'
+          kpi_name: Sales Call 1
+          funnel_step: Step 2.1
+          event_source: completed_activity
+
+test_monthly_report_has_complete_zero_filled_spine:
+  model: analytics.rep_sales_funnel_monthly
+  inputs:
+    intermediate.int_pipedrive__funnel_step_events:
+      rows:
+        - event_key: event-1
+          funnel_entity_key: deal-1
+          event_at: '2024-01-15 12:00:00'
+          kpi_name: Lead Generation
+          funnel_step: Step 1
+          event_source: deal_stage
+        - event_key: event-2
+          funnel_entity_key: deal-2
+          event_at: '2024-01-20 12:00:00'
+          kpi_name: Lead Generation
+          funnel_step: Step 1
+          event_source: deal_stage
+        - event_key: event-3
+          funnel_entity_key: deal-1
+          event_at: '2024-01-25 12:00:00'
+          kpi_name: Qualified Lead
+          funnel_step: Step 2
+          event_source: deal_stage
+  outputs:
+    query:
+      rows:
+        - {month: '2024-01-01', kpi_name: Lead Generation, funnel_step: Step 1, deals_count: 2}
+        - {month: '2024-01-01', kpi_name: Qualified Lead, funnel_step: Step 2, deals_count: 1}
+        - {month: '2024-01-01', kpi_name: Sales Call 1, funnel_step: Step 2.1, deals_count: 0}
+        - {month: '2024-01-01', kpi_name: Needs Assessment, funnel_step: Step 3, deals_count: 0}
+        - {month: '2024-01-01', kpi_name: Sales Call 2, funnel_step: Step 3.1, deals_count: 0}
+        - {month: '2024-01-01', kpi_name: Proposal/Quote Preparation, funnel_step: Step 4, deals_count: 0}
+        - {month: '2024-01-01', kpi_name: Negotiation, funnel_step: Step 5, deals_count: 0}
+        - {month: '2024-01-01', kpi_name: Closing, funnel_step: Step 6, deals_count: 0}
+        - {month: '2024-01-01', kpi_name: Implementation/Onboarding, funnel_step: Step 7, deals_count: 0}
+        - {month: '2024-01-01', kpi_name: Follow-up/Customer Success, funnel_step: Step 8, deals_count: 0}
+        - {month: '2024-01-01', kpi_name: Renewal/Expansion, funnel_step: Step 9, deals_count: 0}
+  vars:
+    start: '2024-01-01'
+    end: '2024-01-31'

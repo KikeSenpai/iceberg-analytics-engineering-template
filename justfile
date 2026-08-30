@@ -136,6 +136,7 @@ verify:
     uv run sqlmesh test
     echo "=== Query verification ==="
     just smoke
+    uv run sqlmesh fetchdf "SELECT COUNT(*) AS report_rows FROM analytics.rep_sales_funnel_monthly"
     echo "=== Teardown ==="
     docker compose -f infra/docker-compose.yml down -v
     rm -f sqlmesh_state.db sqlmesh_state.db.wal
@@ -210,6 +211,7 @@ verify-orb:
 
     echo "=== Static checks ==="
     uv run sqlmesh lint
+    just test-load-raw
     docker compose -f infra/docker-compose.yml config --quiet 2>/dev/null && echo "Compose config: OK" || echo "Compose config: skipped (Docker not available)"
 
     echo "=== Clean slate ==="
@@ -237,9 +239,17 @@ verify-orb:
     echo "=== SQLMesh test ==="
     uv run sqlmesh test
 
+    echo "=== Report contract and reconciliation ==="
+    uv run sqlmesh fetchdf "SELECT MIN(month) AS first_month, MAX(month) AS last_month, COUNT(*) AS report_rows, COUNT(DISTINCT month) AS months FROM analytics.rep_sales_funnel_monthly"
+    uv run sqlmesh fetchdf "SELECT funnel_step, kpi_name, SUM(deals_count) AS deals_count FROM analytics.rep_sales_funnel_monthly GROUP BY 1, 2 ORDER BY CASE funnel_step WHEN 'Step 1' THEN 1 WHEN 'Step 2' THEN 2 WHEN 'Step 2.1' THEN 3 WHEN 'Step 3' THEN 4 WHEN 'Step 3.1' THEN 5 WHEN 'Step 4' THEN 6 WHEN 'Step 5' THEN 7 WHEN 'Step 6' THEN 8 WHEN 'Step 7' THEN 9 WHEN 'Step 8' THEN 10 WHEN 'Step 9' THEN 11 END"
+    uv run sqlmesh fetchdf "SELECT month, COUNT(*) AS step_rows FROM analytics.rep_sales_funnel_monthly GROUP BY 1 ORDER BY 1"
+    uv run sqlmesh fetchdf "SELECT event_source, COUNT(*) AS event_count FROM intermediate.int_pipedrive__funnel_step_events GROUP BY 1 ORDER BY 1"
+    uv run sqlmesh fetchdf "SELECT issue_type, COUNT(*) AS record_count FROM intermediate.int_pipedrive__unmapped_records GROUP BY 1 ORDER BY 1"
+
     echo "=== Smoke: schemas and tables ==="
     "$ORB_SCRIPT" trino-query "SHOW SCHEMAS FROM prod"
     "$ORB_SCRIPT" trino-query "SHOW TABLES FROM prod.raw"
     "$ORB_SCRIPT" trino-query "SHOW TABLES FROM prod.staging"
+    "$ORB_SCRIPT" trino-query "DESCRIBE prod.analytics.rep_sales_funnel_monthly"
 
     echo "=== verify-orb passed ==="

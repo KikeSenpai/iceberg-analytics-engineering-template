@@ -50,7 +50,8 @@ when done. Four persistent services (db, minio, lakekeeper, trino) stay up.
 #### 3. Apply SQLMesh plan
 
 ```
-just plan-auto      # non-interactive: creates tables, loads seeds, builds models
+just load-raw       # recreate Iceberg raw tables from supplied CSVs
+just plan-auto      # non-interactive: build models and run audits
 ```
 
 Or interactive:
@@ -63,9 +64,9 @@ just plan           # prompts for backfill start date
 ```
 just run            # execute missing intervals
 just test           # run SQLMesh unit tests
-just fetch "SELECT COUNT(*) FROM staging.stg_orders"
+just fetch "SELECT COUNT(*) FROM analytics.rep_sales_funnel_monthly"
 just smoke          # show schemas and tables via Trino CLI
-just trino-query "SELECT * FROM prod.raw.orders LIMIT 5"
+just trino-query "SELECT * FROM prod.analytics.rep_sales_funnel_monthly LIMIT 5"
 ```
 
 #### 5. Full stack verification (one command)
@@ -117,7 +118,8 @@ The service manager script is `scripts/orb-services.sh`. It handles:
 #### 3. Apply SQLMesh plan (same commands as Docker)
 
 ```
-just plan-auto      # creates tables, loads seeds, builds models
+just load-raw       # recreate Iceberg raw tables from supplied CSVs
+just plan-auto      # build models and run audits
 just run            # execute missing intervals
 just test           # run SQLMesh unit tests
 ```
@@ -125,8 +127,8 @@ just test           # run SQLMesh unit tests
 #### 4. Query and verify
 
 ```
-just fetch "SELECT COUNT(*) FROM staging.stg_orders"
-just orb-trino-query "SELECT * FROM prod.raw.orders LIMIT 5"
+just fetch "SELECT COUNT(*) FROM analytics.rep_sales_funnel_monthly"
+just orb-trino-query "SELECT * FROM prod.analytics.rep_sales_funnel_monthly LIMIT 5"
 just orb-logs trino # tail Trino server logs
 ```
 
@@ -180,7 +182,7 @@ Trino catalog → Lakekeeper warehouse → Iceberg namespaces → Trino schemas:
 
 - Lakekeeper warehouse `prod` = top-level storage container (S3 bucket `warehouse`)
 - Iceberg namespace = Trino schema (e.g. `raw`, `staging`)
-- Iceberg table = Trino table (e.g. `prod.raw.orders`)
+- Iceberg table = Trino table (e.g. `prod.raw.deal_changes`)
 
 ## Project Structure
 
@@ -188,9 +190,11 @@ Trino catalog → Lakekeeper warehouse → Iceberg namespaces → Trino schemas:
 .
 ├── config.yaml                      SQLMesh config (Trino connection, DuckDB state)
 ├── models/
-│   ├── raw/orders.sql               Seed model (loads CSV into Iceberg table)
-│   └── staging/stg_orders.sql       Staging model (FULL, with audits)
-├── seeds/orders.csv                 10-row fixture data
+│   ├── staging/                     Typed source views
+│   ├── intermediate/                Deal lifecycle and funnel events
+│   └── reporting/                   Monthly funnel report
+├── data/                            Six supplied Pipedrive CSVs
+├── external_models.yaml             Raw table contracts
 ├── audits/                          Custom audit definitions
 ├── macros/                          Custom macro definitions
 ├── tests/                           SQLMesh unit tests
@@ -213,7 +217,7 @@ Trino catalog → Lakekeeper warehouse → Iceberg namespaces → Trino schemas:
 
 ## Adding Models
 
-1. Create `.sql` file in `models/` (e.g. `models/marts/final_orders.sql`).
+1. Create `.sql` file in the appropriate `models/` layer.
 2. Define MODEL block with name, kind, and optional audits.
 3. Run `just lint` to check for issues.
 4. Run `just plan` to apply changes.

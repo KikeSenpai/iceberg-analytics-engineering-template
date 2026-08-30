@@ -1,0 +1,47 @@
+- name: raw.activity
+  description: Supplied Pipedrive activity extract, loaded outside SQLMesh.
+  columns:
+    activity_id: varchar
+    type: varchar
+    assigned_to_user: varchar
+    deal_id: varchar
+    done: varchar
+    due_to: varchar
+
+- name: raw.activity_types
+  description: Supplied Pipedrive activity type lookup, loaded outside SQLMesh.
+  columns:
+    id: varchar
+    name: varchar
+    active: varchar
+    type: varchar
+
+- name: raw.deal_changes
+  description: Supplied Pipedrive deal change log, loaded outside SQLMesh.
+  columns:
+    deal_id: varchar
+    change_time: varchar
+    changed_field_key: varchar
+    new_value: varchar
+
+- name: raw.fields
+  description: Supplied Pipedrive deal field metadata, loaded outside SQLMesh.
+  columns:
+    id: varchar
+    field_key: varchar
+    name: varchar
+    field_value_options: varchar
+
+- name: raw.stages
+  description: Supplied Pipedrive stage lookup, loaded outside SQLMesh.
+  columns:
+    stage_id: varchar
+    stage_name: varchar
+
+- name: raw.users
+  description: Supplied Pipedrive user lookup, loaded outside SQLMesh.
+  columns:
+    id: varchar
+    name: varchar
+    email: varchar
+    modified: varchar

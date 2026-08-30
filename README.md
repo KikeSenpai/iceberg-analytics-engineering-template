@@ -22,7 +22,8 @@ Apache Iceberg analytics stack for analytics engineer take-home tests. Trino + I
 cp .env.example .env
 just setup        # install Python deps
 just infra-up     # start Trino, Lakekeeper, MinIO, Postgres (Docker)
-just plan-auto    # apply SQLMesh plan (creates tables, loads seeds)
+just load-raw     # load the six supplied CSVs into prod.raw
+just plan-auto    # apply SQLMesh plan
 just run          # run models
 just test         # run tests
 ```
@@ -32,6 +33,7 @@ just test         # run tests
 ```bash
 just orb-setup    # install JDK 24, Trino, MinIO, Lakekeeper, PostgreSQL
 just orb-up       # start all services as native processes
+just load-raw     # load the six supplied CSVs into prod.raw
 just plan-auto    # apply SQLMesh plan
 just run          # run models
 just test         # run tests
@@ -54,7 +56,7 @@ Runs: lint → compose config → infra up → health checks → raw load → SQ
 just verify-orb
 ```
 
-Runs: lint → clean → start native services → health checks → raw load → SQLMesh plan → run → test → smoke → teardown. Uses a trap/finalizer for cleanup on success or failure.
+Runs: lint → clean → native services → raw load → SQLMesh plan/audits → run → unit tests → report reconciliation → teardown. A finalizer cleans services and state after success or failure.
 
 ## Services
 
@@ -95,6 +97,7 @@ All commands run via `just`. Run `just --list` to see all recipes.
 |---------|---------|
 | `just plan` | Apply SQLMesh plan (interactive) |
 | `just plan-auto` | Apply SQLMesh plan (non-interactive, auto-apply) |
+| `just load-raw` | Recreate six `prod.raw` tables from `data/*.csv` |
 | `just run` | Execute missing model intervals |
 | `just test` | Run SQLMesh unit tests |
 | `just lint` | Lint SQL models |
@@ -137,6 +140,9 @@ All commands run via `just`. Run `just --list` to see all recipes.
 models/          SQLMesh models (SQL files)
 seeds/           CSV fixture data
 data/            Raw CSV files — loaded by `just load-raw` into prod.raw.*
+audits/          Cross-model SQLMesh data audits
+tests/           SQLMesh unit tests
+external_models.yaml  Raw table contracts
 infra/           Docker Compose + Trino/Lakekeeper config
 config.yaml      SQLMesh project config
 justfile         CLI recipes
@@ -176,8 +182,8 @@ graph LR
     end
     lakekeeper --- ns_raw
     lakekeeper --- ns_staging
-    ns_raw -- "table" --> tbl_orders["orders"]
-    ns_staging -- "table" --> tbl_stg["stg_orders"]
+    ns_raw -- "six source tables" --> tbl_sources["Pipedrive CSV data"]
+    ns_staging -- "typed views" --> tbl_stg["stg_pipedrive__*"]
 ```
 
 ### Catalog and namespace hierarchy

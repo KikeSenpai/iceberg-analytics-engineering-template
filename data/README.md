@@ -2,6 +2,10 @@
 
 Place CSV files here to load them into `prod.raw.<table_name>`.
 
+These six CSVs are the complete supplied Pipedrive extract. There is no deals
+table. The supplied `load_data.sh` confirms the same one-file/one-table contract
+for its PostgreSQL example, but this stack uses the native loader below.
+
 ## Convention
 
 - Each `*.csv` file becomes a table named after its filename (without extension).
