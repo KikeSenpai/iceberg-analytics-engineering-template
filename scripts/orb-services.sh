@@ -250,8 +250,8 @@ discovery.uri=http://localhost:8080
 catalog.management=dynamic
 PROPS
 
-    # iceberg.properties — same as Docker but with localhost endpoints
-    cat > "$catalog_dir/iceberg.properties" << PROPS
+    # prod.properties — same as Docker but with localhost endpoints
+    cat > "$catalog_dir/prod.properties" << PROPS
 connector.name=iceberg
 iceberg.catalog.type=rest
 iceberg.rest-catalog.uri=http://localhost:$LK_PORT/catalog
@@ -362,7 +362,7 @@ trino_query() {
     local sql="$1"
     export JAVA_HOME="$JDK_HOME"
     export PATH="$JDK_HOME/bin:$PATH"
-    "$TRINO_CLI" --server "http://localhost:$TRINO_PORT" --user "$TRINO_USER" --catalog iceberg --execute "$sql"
+    "$TRINO_CLI" --server "http://localhost:$TRINO_PORT" --user "$TRINO_USER" --catalog prod --execute "$sql"
 }
 
 # ─── Orchestration ────────────────────────────────────────────────────────────

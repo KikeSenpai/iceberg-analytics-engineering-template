@@ -5,7 +5,7 @@ gateways:
       user: sqlmesh
       host: localhost
       port: 8080
-      catalog: iceberg
+      catalog: prod
       http_scheme: http
     state_connection:
       type: duckdb

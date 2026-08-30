@@ -50,7 +50,7 @@ trino-wait:
     echo "Trino not ready after 60s"
     exit 1
 
-# Load CSV files from data/ into iceberg.raw tables (requires running infrastructure)
+# Load CSV files from data/ into prod.raw tables (requires running infrastructure)
 load-raw:
     uv run python scripts/load_raw.py
 
@@ -91,14 +91,14 @@ trino-query sql:
     #!/bin/bash
     set -euo pipefail
     container=$(docker compose -f infra/docker-compose.yml ps -q trino)
-    docker exec "$container" trino --catalog iceberg --execute "{{sql}}" --user sqlmesh
+    docker exec "$container" trino --catalog prod --execute "{{sql}}" --user sqlmesh
 
 # Open interactive Trino CLI shell
 trino-shell:
     #!/bin/bash
     set -euo pipefail
     container=$(docker compose -f infra/docker-compose.yml ps -q trino)
-    docker exec -it "$container" trino --catalog iceberg --user sqlmesh
+    docker exec -it "$container" trino --catalog prod --user sqlmesh
 
 # Start SQLMesh browser UI
 ui:
@@ -146,11 +146,11 @@ smoke:
     set -euo pipefail
     container=$(docker compose -f infra/docker-compose.yml ps -q trino)
     echo "=== Schemas ==="
-    docker exec "$container" trino --catalog iceberg --execute "SHOW SCHEMAS" --user sqlmesh
+    docker exec "$container" trino --catalog prod --execute "SHOW SCHEMAS" --user sqlmesh
     echo "=== Tables in raw ==="
-    docker exec "$container" trino --catalog iceberg --execute "SHOW TABLES FROM iceberg.raw" --user sqlmesh
+    docker exec "$container" trino --catalog prod --execute "SHOW TABLES FROM prod.raw" --user sqlmesh
     echo "=== Tables in staging ==="
-    docker exec "$container" trino --catalog iceberg --execute "SHOW TABLES FROM iceberg.staging" --user sqlmesh
+    docker exec "$container" trino --catalog prod --execute "SHOW TABLES FROM prod.staging" --user sqlmesh
 
 # ─── Orb-native (no Docker) ───────────────────────────────────────────────────
 
@@ -238,8 +238,8 @@ verify-orb:
     uv run sqlmesh test
 
     echo "=== Smoke: schemas and tables ==="
-    "$ORB_SCRIPT" trino-query "SHOW SCHEMAS FROM iceberg"
-    "$ORB_SCRIPT" trino-query "SHOW TABLES FROM iceberg.raw"
-    "$ORB_SCRIPT" trino-query "SHOW TABLES FROM iceberg.staging"
+    "$ORB_SCRIPT" trino-query "SHOW SCHEMAS FROM prod"
+    "$ORB_SCRIPT" trino-query "SHOW TABLES FROM prod.raw"
+    "$ORB_SCRIPT" trino-query "SHOW TABLES FROM prod.staging"
 
     echo "=== verify-orb passed ==="

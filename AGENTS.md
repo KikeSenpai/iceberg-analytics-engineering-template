@@ -65,7 +65,7 @@ just run            # execute missing intervals
 just test           # run SQLMesh unit tests
 just fetch "SELECT COUNT(*) FROM staging.stg_orders"
 just smoke          # show schemas and tables via Trino CLI
-just trino-query "SELECT * FROM iceberg.raw.orders LIMIT 5"
+just trino-query "SELECT * FROM prod.raw.orders LIMIT 5"
 ```
 
 #### 5. Full stack verification (one command)
@@ -126,7 +126,7 @@ just test           # run SQLMesh unit tests
 
 ```
 just fetch "SELECT COUNT(*) FROM staging.stg_orders"
-just orb-trino-query "SELECT * FROM iceberg.raw.orders LIMIT 5"
+just orb-trino-query "SELECT * FROM prod.raw.orders LIMIT 5"
 just orb-logs trino # tail Trino server logs
 ```
 
@@ -164,11 +164,15 @@ just orb-clean      # stop and wipe all native data + SQLMesh state (destructive
 
 ## Architecture
 
-SQLMesh connects to Trino on localhost:8080, catalog `iceberg`.
-The `iceberg` catalog is a static Trino catalog (iceberg.properties) pointing
+SQLMesh connects to Trino on localhost:8080, catalog `prod`.
+The `prod` catalog is a static Trino catalog (prod.properties) pointing
 to Lakekeeper warehouse `prod`. Dynamic catalog management is enabled
 (`catalog.management=dynamic`), so additional catalogs can be created at
 runtime via `CREATE CATALOG` SQL statements without restarting Trino.
+
+The Trino catalog name `prod` and the Lakekeeper warehouse name `prod`
+happen to match but are different concepts: the Trino catalog is a
+connector configuration that points to a Lakekeeper warehouse.
 
 State is stored in local DuckDB file `sqlmesh_state.db`.
 
@@ -176,7 +180,7 @@ Trino catalog → Lakekeeper warehouse → Iceberg namespaces → Trino schemas:
 
 - Lakekeeper warehouse `prod` = top-level storage container (S3 bucket `warehouse`)
 - Iceberg namespace = Trino schema (e.g. `raw`, `staging`)
-- Iceberg table = Trino table (e.g. `iceberg.raw.orders`)
+- Iceberg table = Trino table (e.g. `prod.raw.orders`)
 
 ## Project Structure
 
@@ -196,7 +200,7 @@ Trino catalog → Lakekeeper warehouse → Iceberg namespaces → Trino schemas:
 │   ├── docker-compose.yml           Postgres + MinIO + Lakekeeper + Trino (Docker mode)
 │   ├── trino/
 │   │   ├── etc/config.properties    Trino server config (dynamic catalog management)
-│   │   └── catalog/iceberg.properties  Iceberg REST catalog → Lakekeeper warehouse prod
+│   │   └── catalog/prod.properties     Trino catalog `prod` → Lakekeeper warehouse `prod`
 │   └── lakekeeper/
 │       └── create-warehouse.json    Warehouse bootstrap payload (warehouse "prod")
 ├── .agents/
@@ -219,7 +223,7 @@ Trino catalog → Lakekeeper warehouse → Iceberg namespaces → Trino schemas:
 
 ## Raw Data Loading
 
-CSV files placed in `data/` are loaded into `iceberg.raw.<table_name>` by the
+CSV files placed in `data/` are loaded into `prod.raw.<table_name>` by the
 generic loader (`scripts/load_raw.py`).
 
 - Run `just load-raw` to load all `data/*.csv` files.
@@ -247,7 +251,7 @@ generic loader (`scripts/load_raw.py`).
 | `just test` | Run SQLMesh tests |
 | `just lint` | Lint SQL models |
 | `just format` | Format SQL models |
-| `just load-raw` | Load CSV files from data/ into iceberg.raw.* tables |
+| `just load-raw` | Load CSV files from data/ into prod.raw.* tables |
 | `just test-load-raw` | Run raw loader unit tests |
 | `just fetch "SQL"` | Query via SQLMesh fetchdf |
 | `just trino-query "SQL"` | Query Trino CLI directly |

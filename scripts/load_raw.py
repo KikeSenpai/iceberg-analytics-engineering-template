@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generic CSV-to-Iceberg raw loader.
 
-Discovers data/*.csv and loads each file into iceberg.raw.<table_name>.
+Discovers data/*.csv and loads each file into prod.raw.<table_name>.
 All raw columns are VARCHAR — SQLMesh owns typing and transformation.
 
 Raw-fidelity policy:
@@ -27,7 +27,7 @@ BATCH_SIZE = 500
 TRINO_HOST = "localhost"
 TRINO_PORT = 8080
 TRINO_USER = "raw_loader"
-TRINO_CATALOG = "iceberg"
+TRINO_CATALOG = "prod"
 
 
 # ─── Identifier handling ──────────────────────────────────────────────────────
@@ -125,7 +125,7 @@ def build_create_table_sql(table: str, columns: list[str]) -> str:
     """Build a CREATE TABLE statement for an Iceberg v2 Parquet table."""
     col_sql = ", ".join(f"{col} VARCHAR" for col in columns)
     return (
-        f"CREATE TABLE iceberg.raw.{table} ({col_sql}) "
+        f"CREATE TABLE prod.raw.{table} ({col_sql}) "
         "WITH (format = 'PARQUET', format_version = 2)"
     )
 
@@ -138,7 +138,7 @@ def build_insert_sql(table: str, columns: list[str], num_rows: int) -> str:
     col_sql = ", ".join(columns)
     row_ph = "(" + ", ".join(["?"] * len(columns)) + ")"
     placeholders = ", ".join([row_ph] * num_rows)
-    return f"INSERT INTO iceberg.raw.{table} ({col_sql}) VALUES {placeholders}"
+    return f"INSERT INTO prod.raw.{table} ({col_sql}) VALUES {placeholders}"
 
 
 def insert_batch(
@@ -159,7 +159,7 @@ def load_csv(cursor, path: Path) -> int:
     headers, rows = validate_csv(path)
     columns = [quote_identifier(h) for h in headers]
 
-    cursor.execute(f"DROP TABLE IF EXISTS iceberg.raw.{table}")
+    cursor.execute(f"DROP TABLE IF EXISTS prod.raw.{table}")
     cursor.execute(build_create_table_sql(table, columns))
 
     for offset in range(0, len(rows), BATCH_SIZE):
@@ -187,14 +187,14 @@ def main() -> None:
         host=TRINO_HOST, port=TRINO_PORT, user=TRINO_USER, catalog=TRINO_CATALOG
     )
     cursor = conn.cursor()
-    cursor.execute("CREATE SCHEMA IF NOT EXISTS iceberg.raw")
+    cursor.execute("CREATE SCHEMA IF NOT EXISTS prod.raw")
 
     for path, (table, columns, rows) in validated.items():
-        cursor.execute(f"DROP TABLE IF EXISTS iceberg.raw.{table}")
+        cursor.execute(f"DROP TABLE IF EXISTS prod.raw.{table}")
         cursor.execute(build_create_table_sql(table, columns))
         for offset in range(0, len(rows), BATCH_SIZE):
             insert_batch(cursor, table, columns, rows[offset : offset + BATCH_SIZE])
-        print(f"  loaded {len(rows):,} rows → iceberg.raw.{path.stem}")
+        print(f"  loaded {len(rows):,} rows → prod.raw.{path.stem}")
 
     conn.close()
     print("Done.")

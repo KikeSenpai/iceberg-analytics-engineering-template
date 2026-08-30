@@ -1,11 +1,11 @@
 # Raw Data Directory
 
-Place CSV files here to load them into `iceberg.raw.<table_name>`.
+Place CSV files here to load them into `prod.raw.<table_name>`.
 
 ## Convention
 
 - Each `*.csv` file becomes a table named after its filename (without extension).
-- Example: `data/orders.csv` → `iceberg.raw.orders`
+- Example: `data/orders.csv` → `prod.raw.orders`
 - Reserved filenames like `order.csv` work (the table name is quoted).
 
 ## Raw-fidelity policy

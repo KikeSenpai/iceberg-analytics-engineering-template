@@ -86,7 +86,7 @@ All commands run via `just`. Run `just --list` to see all recipes.
 
 | Command | Purpose |
 |---------|---------|
-| `just load-raw` | Load CSV files from `data/` into `iceberg.raw.*` tables |
+| `just load-raw` | Load CSV files from `data/` into `prod.raw.*` tables |
 | `just test-load-raw` | Run raw loader unit tests |
 
 ### SQLMesh
@@ -136,7 +136,7 @@ All commands run via `just`. Run `just --list` to see all recipes.
 ```
 models/          SQLMesh models (SQL files)
 seeds/           CSV fixture data
-data/            Raw CSV files — loaded by `just load-raw` into iceberg.raw.*
+data/            Raw CSV files — loaded by `just load-raw` into prod.raw.*
 infra/           Docker Compose + Trino/Lakekeeper config
 config.yaml      SQLMesh project config
 justfile         CLI recipes
@@ -144,7 +144,7 @@ justfile         CLI recipes
 
 ## Raw Data Loading
 
-Place CSV files in `data/` and run `just load-raw` to load them into `iceberg.raw.<table_name>`.
+Place CSV files in `data/` and run `just load-raw` to load them into `prod.raw.<table_name>`.
 All files are validated before any table changes. See `data/README.md` for details.
 
 ## Adding Models
@@ -170,7 +170,7 @@ graph LR
     lakekeeper -- "metadata" --> postgres
     trino -- "S3 / vended creds" --> minio
 
-    subgraph "warehouse 'prod'"
+    subgraph "Lakekeeper warehouse 'prod'"
         ns_raw["namespace: raw"]
         ns_staging["namespace: staging"]
     end
@@ -180,13 +180,48 @@ graph LR
     ns_staging -- "table" --> tbl_stg["stg_orders"]
 ```
 
+### Catalog and namespace hierarchy
+
+The terminology can be confusing because "catalog" is used in two senses:
+
+- **Lakekeeper** is the metadata/catalog **service**. It manages one or more
+  **warehouses**. This template creates a warehouse named `prod`.
+- A **Trino catalog** is a connector configuration file (`<name>.properties`).
+  The file name becomes the first component of `catalog.schema.table` in SQL.
+  One Trino instance can have multiple Iceberg connector configurations,
+  typically one per Lakekeeper warehouse.
+
+This template uses a Trino catalog named `prod` (from `prod.properties`) that
+points to the Lakekeeper warehouse `prod`. The names happen to match but are
+different concepts.
+
+**Hierarchy:**
+
+```
+Lakekeeper (metadata service)
+└── warehouse "prod" (S3 bucket "warehouse")
+    ├── namespace "raw"        → Trino schema: prod.raw
+    │   └── table "orders"     → Trino table: prod.raw.orders
+    └── namespace "staging"    → Trino schema: prod.staging
+        └── table "stg_orders" → Trino table: prod.staging.stg_orders
+```
+
+**Example:**
+
+```sql
+-- prod = Trino catalog (from prod.properties)
+-- raw = Iceberg namespace (Trino schema)
+-- orders = Iceberg table (Trino table)
+SELECT * FROM prod.raw.orders LIMIT 5;
+```
+
 - SQLMesh connects to Trino via JDBC and submits all model SQL there.
-- Trino's static `iceberg` catalog points to Lakekeeper warehouse `prod`.
+- Trino's static `prod` catalog points to Lakekeeper warehouse `prod`.
 - Lakekeeper stores table metadata in Postgres and vends S3 credentials to Trino.
 - Trino reads/writes Parquet data files in MinIO using vended credentials.
 - Namespace = Trino schema (e.g. `raw`, `staging`). Table = Iceberg table.
 
-Static catalog `iceberg` loads at startup (points to warehouse `prod`).
+Static catalog `prod` loads at startup (points to warehouse `prod`).
 Dynamic catalog management enabled — create additional catalogs at runtime:
 
 ```sql
@@ -194,7 +229,7 @@ CREATE CATALOG silver USING iceberg
 WITH (
     "iceberg.catalog.type" = 'rest',
     "iceberg.rest-catalog.uri" = 'http://lakekeeper:8181/catalog',
-    "iceberg.rest-catalog.warehouse" = 'prod',
+    "iceberg.rest-catalog.warehouse" = 'silver',
     "iceberg.rest-catalog.nested-namespace-enabled" = 'true',
     "iceberg.rest-catalog.vended-credentials-enabled" = 'true',
     "fs.native-s3.enabled" = 'true',

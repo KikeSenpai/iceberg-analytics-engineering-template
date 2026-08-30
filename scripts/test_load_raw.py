@@ -91,7 +91,7 @@ def test_build_insert_sql_uses_parameter_placeholders():
 
 def test_build_insert_sql_single_row():
     sql = load_raw.build_insert_sql('"t"', ['"c"'], 1)
-    assert sql == 'INSERT INTO iceberg.raw."t" ("c") VALUES (?)'
+    assert sql == 'INSERT INTO prod.raw."t" ("c") VALUES (?)'
 
 
 # ─── Duplicate headers ───────────────────────────────────────────────────────
@@ -272,7 +272,7 @@ def test_validate_csv_unsafe_header():
 
 def test_build_create_table_sql():
     sql = load_raw.build_create_table_sql('"orders"', ['"id"', '"name"'])
-    assert "iceberg.raw.\"orders\"" in sql
+    assert "prod.raw.\"orders\"" in sql
     assert '"id" VARCHAR' in sql
     assert "PARQUET" in sql
     assert "format_version = 2" in sql
