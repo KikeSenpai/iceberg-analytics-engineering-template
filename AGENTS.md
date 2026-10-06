@@ -5,7 +5,7 @@
 - Query engine: Trino 476 (trinodb/trino, version-pinned)
 - Table format: Apache Iceberg
 - Catalog: Lakekeeper v0.12.4 (Iceberg REST Catalog)
-- Storage: MinIO (S3-compatible, stands in for S3/ADLS)
+- Storage: MinIO (S3-compatible, stands in for S3/ADLS; `pgsty/minio` community fork image)
 - Transformations: SQLMesh (Trino adapter, DuckDB state)
 - Python: UV for dependency management
 - Linting: SQLMesh built-in linter
@@ -13,9 +13,25 @@
 
 ## Testing Workflow
 
-This repo supports two execution modes: **Docker** (local development) and **Orb-native** (Amp cloud sandbox, no Docker). All commands use `just`.
+Docker Compose is the only execution mode, locally and in Amp orbs. All
+commands use `just`.
 
-### Mode 1: Docker (local development)
+### Amp orbs
+
+`.agents/setup` installs uv, just, Docker Engine, the Compose plugin, and
+Python deps. `.amp/services.yaml` declares the `docker-daemon` orb service
+(`sudo dockerd`), and `.agents/resume` runs `amp orb services ensure` to start it.
+If `docker info` fails in an orb, run:
+
+```
+amp orb services ensure                 # start dockerd as a supervised service
+amp orb service logs docker-daemon      # inspect dockerd logs
+```
+
+Then use the same steps as local development below. `just verify` is the
+canonical end-to-end check.
+
+### Steps
 
 Follow these steps when testing infra or model changes.
 
@@ -86,88 +102,10 @@ just down           # stop services, keep volumes
 just clean          # stop services, wipe volumes and SQLMesh state (destructive)
 ```
 
-### Mode 2: Orb-native (Amp cloud sandbox — no Docker)
-
-For Amp orbs that cannot run Docker, use the orb-native workflow. Services run
-as native processes with PID files, readiness checks, and log management.
-
-#### 1. Setup (installs all native dependencies)
-
-```
-just orb-setup      # installs JDK 24, Trino 476, MinIO, Lakekeeper, PostgreSQL, mc, trino CLI
-```
-
-Or run `.agents/setup` directly. This is idempotent — safe to re-run.
-
-#### 2. Start infrastructure
-
-```
-just orb-up         # start PostgreSQL → MinIO → Lakekeeper → Trino as processes
-just orb-health     # check all health endpoints
-just orb-status     # show process and port status
-```
-
-The service manager script is `scripts/orb-services.sh`. It handles:
-- PostgreSQL: initdb + pg_ctl (data in $ORB_NATIVE_DIR/pgdata)
-- MinIO: binary server (data in $ORB_NATIVE_DIR/minio-data, bucket auto-created)
-- Lakekeeper: migrate + serve (metadata in PostgreSQL, metrics on port 9100)
-- Trino: launcher with generated config pointing to localhost
-- Bootstrap and warehouse creation via curl API calls
-
-#### 3. Apply SQLMesh plan (same commands as Docker)
-
-```
-just plan-auto      # creates tables, loads seeds, builds models
-just run            # execute missing intervals
-just test           # run SQLMesh unit tests
-```
-
-#### 4. Query and verify
-
-```
-just fetch "SELECT COUNT(*) FROM staging.stg_orders"
-just orb-trino-query "SELECT * FROM prod.raw.orders LIMIT 5"
-just orb-logs trino # tail Trino server logs
-```
-
-#### 5. Full stack verification (one command)
-
-```
-just verify-orb
-```
-
-Runs: lint → compose config check → clean → start native services → health checks →
-raw load → SQLMesh plan → run → test → smoke (schemas/tables) → teardown.
-Uses a trap/finalizer so services and runtime state are cleaned on success or failure.
-
-#### 6. Teardown
-
-```
-just orb-down       # stop all native services (keep data)
-just orb-clean      # stop and wipe all native data + SQLMesh state (destructive)
-```
-
-#### Logs and storage
-
-- Service logs: `$HOME/.local/share/orb-native/logs/`
-- Trino server log: `$HOME/.local/share/orb-native/trino-data/var/log/server.log`
-- PID files: `$HOME/.local/share/orb-native/pids/`
-- Data dirs: `pgdata/`, `minio-data/`, `trino-data/` under `$HOME/.local/share/orb-native/`
-
-#### Differences from Docker
-
-- PostgreSQL 15 (apt) instead of 17 (Docker image). Lakekeeper compatible with both.
-- Hostnames are `localhost` instead of Docker DNS names (lakekeeper, minio, db).
-- Lakekeeper metrics port is 9100 (to avoid conflict with MinIO on 9000).
-- Trino config is generated at runtime with localhost endpoints.
-- No Docker volumes — data is in `$HOME/.local/share/orb-native/`.
-
 ## Explore Raw Data Before Modeling
 
 Inspect loaded raw data before writing SQLMesh models. Prefer non-interactive
 commands so results remain visible in agent logs.
-
-With Docker:
 
 ```
 just smoke
@@ -177,8 +115,7 @@ just trino-query "SELECT * FROM prod.raw.<table> LIMIT 20"
 just trino-query "SELECT COUNT(*) FROM prod.raw.<table>"
 ```
 
-In an Amp orb, use `just orb-trino-query "SQL"` with the same SQL. Use
-additional read-only queries to profile nulls, distinct values, and ranges.
+Use additional read-only queries to profile nulls, distinct values, and ranges.
 Raw-loader columns are `VARCHAR`; infer and apply business types in SQLMesh
 models. `just fetch "SELECT ..."` is also available through SQLMesh.
 
@@ -215,18 +152,20 @@ Trino catalog → Lakekeeper warehouse → Iceberg namespaces → Trino schemas:
 ├── macros/                          Custom macro definitions
 ├── tests/                           SQLMesh unit tests
 ├── scripts/
-│   └── orb-services.sh              Orb-native service manager (start/stop/health/clean)
+│   ├── load_raw.py                  CSV-to-Iceberg raw loader
+│   └── test_load_raw.py             Raw loader unit tests
 ├── infra/
-│   ├── docker-compose.yml           Postgres + MinIO + Lakekeeper + Trino (Docker mode)
+│   ├── docker-compose.yml           Postgres + MinIO + Lakekeeper + Trino
 │   ├── trino/
 │   │   ├── etc/config.properties    Trino server config (dynamic catalog management)
 │   │   └── catalog/prod.properties     Trino catalog `prod` → Lakekeeper warehouse `prod`
 │   └── lakekeeper/
 │       └── create-warehouse.json    Warehouse bootstrap payload (warehouse "prod")
 ├── .agents/
-│   ├── setup                        Orb setup — installs all native + Python deps
-│   └── resume                       Orb resume — fast idempotent check
-├── justfile                         CLI command runner (Docker + orb-native recipes)
+│   ├── setup                        Orb setup — installs uv, just, Docker Engine + Compose, Python deps
+│   └── resume                       Orb resume — starts the docker-daemon orb service
+├── .amp/services.yaml               Orb service: supervised dockerd
+├── justfile                         CLI command runner
 ├── pyproject.toml                   Python deps (sqlmesh[trino])
 └── .env.example                     Environment variables template
 ```
@@ -277,15 +216,6 @@ generic loader (`scripts/load_raw.py`).
 | `just trino-query "SQL"` | Query Trino CLI directly |
 | `just trino-shell` | Interactive Trino CLI |
 | `just smoke` | Show schemas + tables via Trino CLI |
-| `just verify` | Docker full stack: lint → infra → raw load → plan → run → test → smoke → teardown |
-| `just verify-orb` | Orb-native full stack: lint → native infra → raw load → plan → run → test → smoke → teardown |
-| `just orb-setup` | Install native deps (JDK, Trino, MinIO, Lakekeeper, PG) |
-| `just orb-up` | Start native services |
-| `just orb-down` | Stop native services |
-| `just orb-clean` | Stop and wipe native data (destructive) |
-| `just orb-status` | Show native service status |
-| `just orb-health` | Health-check native services |
-| `just orb-logs [svc]` | Tail native service logs |
-| `just orb-trino-query "SQL"` | Query native Trino via CLI |
+| `just verify` | Full stack: lint → infra → raw load → plan → run → test → smoke → teardown |
 | `just ui` | SQLMesh browser UI |
 | `just dag` | Render DAG as HTML |

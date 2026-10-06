@@ -1,15 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Fast, idempotent reconnect check — must finish in seconds.
-# Verify tools are available and deps are synced.
-
-export PATH="$HOME/.local/bin:$PATH"
-
-if ! command -v uv &>/dev/null; then
-    echo "uv missing — run .agents/setup"
-    exit 1
-fi
-
-uv sync --frozen 2>/dev/null || uv sync
-echo "Resume check passed."
+# Fast and idempotent: start the supervised Docker daemon declared in
+# .amp/services.yaml if it is not already running.
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+amp orb services ensure

@@ -1,0 +1,4 @@
+services:
+  docker-daemon:
+    platforms: [linux]
+    command: sudo dockerd --group "$(id -gn)"
