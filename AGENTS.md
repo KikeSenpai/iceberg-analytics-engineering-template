@@ -166,8 +166,7 @@ Trino catalog → Lakekeeper warehouse → Iceberg namespaces → Trino schemas:
 │   └── resume                       Orb resume — starts the docker-daemon orb service
 ├── .amp/services.yaml               Orb service: supervised dockerd
 ├── justfile                         CLI command runner
-├── pyproject.toml                   Python deps (sqlmesh[trino])
-└── .env.example                     Environment variables template
+└── pyproject.toml                   Python deps (sqlmesh[trino])
 ```
 
 ## Adding Models

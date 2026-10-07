@@ -19,7 +19,6 @@ Apache Iceberg analytics stack for analytics engineer take-home tests. Trino + I
 ### Docker (local development)
 
 ```bash
-cp .env.example .env
 just setup        # install Python deps
 just infra-up     # start Trino, Lakekeeper, MinIO, Postgres (Docker)
 just plan-auto    # apply SQLMesh plan (creates tables, loads seeds)
@@ -211,10 +210,16 @@ WITH (
 )
 ```
 
-## Environment
+## Local Credentials
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| MINIO_ROOT_USER | minio-root-user | MinIO admin user |
-| MINIO_ROOT_PASSWORD | minio-root-password | MinIO admin password |
-| LAKEKEEPER_PG_ENCRYPTION_KEY | This-is-NOT-Secure! | Lakekeeper DB encryption key |
+No `.env` file is needed. The stack uses fixed, non-secret local development
+values set directly in `infra/docker-compose.yml` and
+`infra/lakekeeper/create-warehouse.json`:
+
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| MinIO root user | minio-root-user | MinIO admin user / S3 access key |
+| MinIO root password | minio-root-password | MinIO admin password / S3 secret key |
+| Lakekeeper PG encryption key | This-is-NOT-Secure! | Lakekeeper DB encryption key |
+
+Do not reuse these values outside local development.
