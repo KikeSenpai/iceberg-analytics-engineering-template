@@ -9,6 +9,8 @@ services:
       timeout: 10s
       retries: 2
       start_period: 10s
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     networks:
       iceberg_net:
 
@@ -27,6 +29,8 @@ services:
     ports:
       - "9000:9000"
       - "9001:9001"
+    volumes:
+      - minio_data:/data
     networks:
       iceberg_net:
 
@@ -149,11 +153,13 @@ services:
       initialwarehouse:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "curl", "-I", "http://localhost:8080/v1/status"]
+      # Healthy only after Trino finishes initializing (not just HTTP up),
+      # so `just infra-up && just load-raw` does not hit SERVER_STARTING_UP.
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/v1/info | grep -q '\"starting\":false'"]
       interval: 2s
       timeout: 10s
       retries: 2
-      start_period: 10s
+      start_period: 60s
     ports:
       - "8080:8080"
     volumes:
@@ -164,3 +170,9 @@ services:
 
 networks:
   iceberg_net:
+
+# Named volumes so Iceberg data (MinIO) and catalog metadata (Postgres) survive
+# `docker compose down` / `up`. Only `down -v` (just clean) removes them.
+volumes:
+  postgres_data:
+  minio_data:

@@ -78,7 +78,7 @@ just plan           # prompts for backfill start date
 
 ```
 just run            # execute missing intervals
-just test           # run SQLMesh unit tests
+just test           # run SQLMesh unit tests (none ship yet; add under tests/)
 just fetch "SELECT COUNT(*) FROM staging.stg_orders"
 just smoke          # show schemas and tables via Trino CLI
 just trino-query "SELECT * FROM prod.raw.orders LIMIT 5"
@@ -91,14 +91,16 @@ just verify
 ```
 
 Runs the entire chain: lint → compose config → infra up → health check →
-raw load → SQLMesh plan → SQLMesh run → SQLMesh test → smoke → teardown.
+raw load → SQLMesh plan → SQLMesh run → SQLMesh test → smoke → MinIO storage
+check (`just minio-files` must list Parquet files) → restart persistence check
+(`down` / `up`, same MinIO objects) → teardown.
 
 Use this after any infra or model change to confirm nothing broke.
 
 #### 6. Teardown
 
 ```
-just down           # stop services, keep volumes
+just down           # stop services, keep volumes (data survives infra-up)
 just clean          # stop services, wipe volumes and SQLMesh state (destructive)
 ```
 
@@ -133,6 +135,21 @@ connector configuration that points to a Lakekeeper warehouse.
 
 State is stored in local DuckDB file `sqlmesh_state.db`.
 
+### Physical storage
+
+MinIO bucket `warehouse` is the only physical store for Iceberg data. Trino
+writes Parquet data files and Iceberg metadata files there through
+`s3.endpoint=http://minio:9000` with path-style access and Lakekeeper-vended
+credentials. Postgres holds only Lakekeeper catalog state. Both use named
+Docker volumes (`minio_data`, `postgres_data`), so data survives `just down` /
+`just infra-up`. `just clean` wipes volumes and `sqlmesh_state.db` together;
+keep them in sync, or SQLMesh state references tables that no longer exist.
+
+SQLMesh writes each model to a physical table in `sqlmesh__<schema>` (e.g.
+`prod.sqlmesh__staging.staging__stg_orders__<hash>`) and exposes it as a view
+in `<schema>` (e.g. `prod.staging.stg_orders`). Raw loader tables are physical
+tables in `prod.raw`. Use `just minio-files` to list the Parquet files.
+
 Trino catalog → Lakekeeper warehouse → Iceberg namespaces → Trino schemas:
 
 - Lakekeeper warehouse `prod` = top-level storage container (S3 bucket `warehouse`)
@@ -148,14 +165,11 @@ Trino catalog → Lakekeeper warehouse → Iceberg namespaces → Trino schemas:
 │   ├── raw/orders.sql               Seed model (loads CSV into Iceberg table)
 │   └── staging/stg_orders.sql       Staging model (FULL, with audits)
 ├── seeds/orders.csv                 10-row fixture data
-├── audits/                          Custom audit definitions
-├── macros/                          Custom macro definitions
-├── tests/                           SQLMesh unit tests
 ├── scripts/
 │   ├── load_raw.py                  CSV-to-Iceberg raw loader
 │   └── test_load_raw.py             Raw loader unit tests
 ├── infra/
-│   ├── docker-compose.yml           Postgres + MinIO + Lakekeeper + Trino
+│   ├── docker-compose.yml           Postgres + MinIO + Lakekeeper + Trino (named volumes)
 │   ├── trino/
 │   │   ├── etc/config.properties    Trino server config (dynamic catalog management)
 │   │   └── catalog/prod.properties     Trino catalog `prod` → Lakekeeper warehouse `prod`
@@ -198,7 +212,7 @@ generic loader (`scripts/load_raw.py`).
 |---------|---------|
 | `just setup` | Install Python deps |
 | `just infra-up` | Start infrastructure (wait for healthchecks) |
-| `just down` | Stop infrastructure (keep volumes) |
+| `just down` | Stop infrastructure (keep volumes and data) |
 | `just clean` | Stop and wipe everything (destructive) |
 | `just health` | Check Trino + Lakekeeper endpoints |
 | `just status` | Show container status |
@@ -215,6 +229,7 @@ generic loader (`scripts/load_raw.py`).
 | `just trino-query "SQL"` | Query Trino CLI directly |
 | `just trino-shell` | Interactive Trino CLI |
 | `just smoke` | Show schemas + tables via Trino CLI |
-| `just verify` | Full stack: lint → infra → raw load → plan → run → test → smoke → teardown |
+| `just minio-files` | List Iceberg Parquet data files stored in MinIO |
+| `just verify` | Full stack: lint → infra → raw load → plan → run → test → smoke → storage + restart checks → teardown |
 | `just ui` | SQLMesh browser UI |
 | `just dag` | Render DAG as HTML |

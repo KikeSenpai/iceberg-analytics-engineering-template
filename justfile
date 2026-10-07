@@ -136,9 +136,24 @@ verify:
     uv run sqlmesh test
     echo "=== Query verification ==="
     just smoke
+    echo "=== Storage check: Iceberg Parquet files in MinIO ==="
+    before=$(just minio-files | sort)
+    echo "$before"
+    [ -n "$before" ] || { echo "No Parquet files in MinIO"; exit 1; }
+    echo "=== Persistence check: restart stack, keep volumes ==="
+    docker compose -f infra/docker-compose.yml down
+    docker compose -f infra/docker-compose.yml up -d --wait
+    just trino-wait
+    after=$(just minio-files | sort)
+    [ "$before" = "$after" ] && echo "MinIO objects survived restart" || { echo "MinIO objects changed after restart"; exit 1; }
+    just smoke
     echo "=== Teardown ==="
     docker compose -f infra/docker-compose.yml down -v
     rm -f sqlmesh_state.db sqlmesh_state.db.wal
+
+# List Iceberg Parquet data files physically stored in MinIO (bucket `warehouse`)
+minio-files:
+    @docker compose -f infra/docker-compose.yml exec -T minio sh -c 'mc alias set local http://localhost:9000 minio-root-user minio-root-password >/dev/null && mc find local/warehouse --name "*.parquet"'
 
 # Quick smoke test — show schemas and tables via Trino CLI
 smoke:

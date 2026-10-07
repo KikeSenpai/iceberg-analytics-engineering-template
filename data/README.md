@@ -5,7 +5,9 @@ Place CSV files here to load them into `prod.raw.<table_name>`.
 ## Convention
 
 - Each `*.csv` file becomes a table named after its filename (without extension).
-- Example: `data/orders.csv` → `prod.raw.orders`
+- Example: `data/customers.csv` → `prod.raw.customers`
+- Do not reuse a SQLMesh model name in the `raw` schema (e.g. `orders.csv`
+  collides with the `raw.orders` seed model view).
 - Reserved filenames like `order.csv` work (the table name is quoted).
 
 ## Raw-fidelity policy
