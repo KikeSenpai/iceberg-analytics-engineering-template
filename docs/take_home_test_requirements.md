@@ -1,13 +1,13 @@
-# Air Service (Air Boltic) Take-Home Test
+# Air Service (Uber Air) Take-Home Test
 
 Welcome. This is the assignment for the analytics engineer take-home test. You
-will design and implement an analytical data model for **Air Boltic**, a
-hypothetical Bolt venture, using this repository's Iceberg analytics stack:
+will design and implement an analytical data model for **Uber Air**, a
+hypothetical Uber venture, using this repository's Iceberg analytics stack:
 Trino 476, Apache Iceberg, Lakekeeper, MinIO, and SQLMesh.
 
 ## Business context
 
-Bolt has launched **Air Boltic**, a marketplace that matches aeroplane
+Uber has launched **Uber Air**, a marketplace that matches aeroplane
 operators with individuals and groups who need transport. The service wants to
 understand:
 
@@ -16,7 +16,7 @@ understand:
 - its use cases (geography, price tier, group/seat size, aircraft type),
 - portfolio-comparable metrics, including DAU/WAU/MAU and revenue.
 
-Air Boltic aims to facilitate 20% of global aeroplane rides by 2030. Your model
+Uber Air aims to facilitate 20% of global aeroplane rides by 2030. Your model
 is the foundation for monitoring and self-service analysis toward that goal.
 
 ## Inputs
