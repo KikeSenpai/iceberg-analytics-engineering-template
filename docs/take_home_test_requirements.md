@@ -1,11 +1,5 @@
 # Air Service (Uber Air) Take-Home Assignment
 
-# Important points
-
-- Include argumentation for your decisions and feel free to demonstrate your areas of interest and expertise.
-- We value your original thoughts and creativity: please refrain from using external aids (chatbots, language models) when writing the submission.
-- If you do use any, make it clear in your submission: add some reasoning, prompts you used etc.
-
 # Part 1
 
 ## Introduction
