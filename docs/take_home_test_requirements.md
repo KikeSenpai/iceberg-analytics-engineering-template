@@ -2,15 +2,6 @@
 
 # Part 1
 
-## Introduction
-
-Uber's mission is to make cities for people, not cars. To fulfil that mission, we are offering a number of mobility and other services that reduce the need for private cars:
-
-- Ride hailing.
-- Micromobility.
-- Carsharing.
-- Delivery.
-
 ## New service: Uber Air
 
 To further support the cause, we have (hypothetically!) launched another service: Uber Air.
