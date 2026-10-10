@@ -4,6 +4,8 @@
 
 Raw source fidelity is separated from business interpretation. `scripts/load_raw.py` recreates all six `prod.raw` Iceberg tables from CSV as text, outside SQLMesh. `external_models.yaml` declares those tables to SQLMesh. Staging views trim, type, normalize, and expose quality states. Intermediate views perform reusable joins. Full Iceberg dimensions, facts, and marts give stable consumption contracts. Trino catalog `prod` and Lakekeeper warehouse `prod` are distinct concepts whose names intentionally match.
 
+The aircraft model specifications were supplied as a JSON file. The original supplied artifact is archived at [`docs/aeroplane_model.json`](aeroplane_model.json); [`data/aeroplane_model.csv`](../data/aeroplane_model.csv) is the converted, implementation-ready copy used for loading, and the two were validated for exact content fidelity.
+
 `FULL` is deliberate for current-state files with no ingestion, update, or deletion timestamps: an incremental strategy could retain stale records or status values. At production scale, require CDC or immutable event timestamps, then change facts to incremental-by-time or unique-key models and partition by event date.
 
 ```mermaid
