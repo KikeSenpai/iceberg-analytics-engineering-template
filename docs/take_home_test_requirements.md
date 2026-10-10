@@ -7,10 +7,11 @@ supplied data.
 
 ## Business context
 
-Our sales leadership reviews pipeline movement month by month. They want a
-single trustworthy report that shows, for each calendar month, how many deals
-entered each stage of the sales funnel. The data comes from Pipedrive, but as
-a raw change-and-activity extract rather than a clean deal snapshot: you will
+You are completing this exercise for Vattenfall. Vattenfall's sales leadership
+reviews pipeline movement month by month. They want a single trustworthy
+report that shows, for each calendar month, how many deals entered each stage
+of the sales funnel. The data comes from Vattenfall's Pipedrive CRM, but as a
+raw change-and-activity extract rather than a clean deal snapshot: you will
 need to reconstruct deal identity and funnel progression from the change
 history and activity log yourself.
 
