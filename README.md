@@ -6,7 +6,8 @@ Apache Iceberg analytics stack for analytics engineer take-home tests. Trino + I
 
 This branch contains the complete Air Service analytical model. See:
 
-- [Analytical design, ERD, model dictionary, KPIs, and limitations](docs/air-service-analytics.md)
+- [Assignment requirements](docs/take_home_test_requirements.md)
+- [Analytical design, ERD, model dictionary, KPIs, and limitations](docs/take_home_solution.md)
 - [Source provenance, conversion fidelity, and dataset profile](docs/data-provenance.md)
 
 Run `just verify` for a clean full-stack load, plan, execution, audit/test, query, MinIO storage and restart persistence checks, and teardown. Run `just load-raw` when services are already up.
