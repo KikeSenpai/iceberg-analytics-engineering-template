@@ -6,7 +6,7 @@ Apache Iceberg analytics stack for analytics engineer take-home tests. Trino + I
 
 This branch contains the complete Air Service analytical model. See:
 
-- [Assignment requirements](docs/take_home_test_requirements.md)
+- [Original employer assignment (Part 1 and Part 2)](docs/take_home_test_requirements.md)
 - [Analytical design, ERD, model dictionary, KPIs, and limitations](docs/take_home_solution.md)
 - [Source provenance, conversion fidelity, and dataset profile](docs/data-provenance.md)
 
